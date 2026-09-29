@@ -1,0 +1,16 @@
+# Java / Spring Boot / Maven / Gradle
+target/
+.gradle/
+build/
+*.jar
+
+# Node / Frontend
+node_modules/
+dist/
+.env
+
+# IDEs y Editores
+.vscode/
+.idea/
+*.swp
+.DS_Store
