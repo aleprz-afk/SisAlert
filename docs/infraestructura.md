@@ -131,3 +131,43 @@ Los comandos exactos se documentan en el `README.md` del repositorio.
 | Microservicio de alertas | H2 en memoria (`jdbc:h2:mem:alertasdb`) | Al reiniciarlo se pierden lecturas y alertas; las zonas se recargan al arrancar |
 
 Se elige memoria porque el PDF la contempla como opcional y el objetivo es un MVP funcional, no un sistema de producción. Cada servicio tiene su propio almacenamiento: **ningún servicio lee los datos de otro**, solo se comunican por REST.
+
+---
+
+## 7. Seguridad básica del MVP
+
+- La autenticación la resuelve la API de autenticación con token JWT.
+- El frontend guarda el token en `sessionStorage` y lo envía en el encabezado `Authorization` a partir del login.
+- No se guardan contraseñas ni claves de servicios externos en el repositorio. Si la fuente externa requiere una clave, se lee desde una variable de entorno.
+- El microservicio de alertas **no valida el token** en esta etapa; el PDF no lo exige. Queda como mejora para la entrega final.
+
+---
+
+## 8. Decisiones y justificación
+
+| Decisión | Justificación |
+|---|---|
+| Tres procesos separados | Muestra separación de responsabilidades entre cliente, autenticación y dominio |
+| Comunicación HTTP/REST con JSON | Es lo que sugiere el PDF y todas las tecnologías del equipo lo soportan |
+| Proxy en el frontend | Evita modificar la API de autenticación provista |
+| H2 en memoria | Cero instalación y suficiente para el MVP |
+| Ejecución local sin contenedores | El PDF permite demostrar "localmente o desplegado"; Docker y despliegue en nube quedan fuera del alcance |
+| Consulta a la fuente externa solo bajo demanda | Simplifica el MVP; no hay tareas programadas |
+
+---
+
+## 9. Limitaciones conocidas
+
+- Si la fuente externa no responde, el microservicio devuelve un error controlado y conserva las alertas existentes.
+- Sin usuarios ni alertas persistentes entre reinicios.
+- No hay despliegue en servidor; la demostración es local.
+
+---
+
+## 10. Lista de verificación
+
+- [ ] Puerto de la API de autenticación confirmado y anotado
+- [ ] Fuente externa elegida y anotada (Paso 4)
+- [ ] Versiones de .NET, JDK y Node confirmadas en los computadores del equipo
+- [ ] Proxy del frontend probado (login desde el navegador sin errores de CORS)
+- [ ] Documento revisado por al menos otro integrante
