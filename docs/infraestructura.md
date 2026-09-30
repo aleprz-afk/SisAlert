@@ -98,3 +98,36 @@ export default {
 }
 ```
 > Si la API de autenticación solo escucha en HTTPS con certificado de desarrollo, añadir `secure: false` en su bloque. **[verificar al ejecutarla]**
+
+---
+
+## 5. Ambiente de ejecución
+
+### 5.1 Requisitos instalados
+
+| Herramienta | Versión | Para qué |
+|---|---|---|
+| Git | Reciente | Control de versiones |
+| .NET SDK | 10 | Ejecutar la API de autenticación |
+| JDK | 17 o superior | Ejecutar el microservicio de alertas |
+| Maven o Gradle | Según el proyecto | Compilar el microservicio (puede usarse el wrapper incluido) |
+| Node.js | LTS | Ejecutar el frontend |
+
+### 5.2 Orden de arranque
+
+1. **API de autenticación** (`dotnet run`). Registrar el usuario de prueba, porque sus datos están en memoria y se pierden al reiniciar.
+2. **Microservicio de alertas** (Maven o Gradle). Al iniciar carga las zonas de ejemplo en H2.
+3. **Frontend** (`npm install` la primera vez y luego `npm run dev`). Abrir `http://localhost:5173`.
+
+Los comandos exactos se documentan en el `README.md` del repositorio.
+
+---
+
+## 6. Persistencia
+
+| Servicio | Almacenamiento | Consecuencia |
+|---|---|---|
+| API de autenticación | Memoria propia del proceso | Al reiniciarla se pierden los usuarios; hay que registrarlos de nuevo |
+| Microservicio de alertas | H2 en memoria (`jdbc:h2:mem:alertasdb`) | Al reiniciarlo se pierden lecturas y alertas; las zonas se recargan al arrancar |
+
+Se elige memoria porque el PDF la contempla como opcional y el objetivo es un MVP funcional, no un sistema de producción. Cada servicio tiene su propio almacenamiento: **ningún servicio lee los datos de otro**, solo se comunican por REST.
