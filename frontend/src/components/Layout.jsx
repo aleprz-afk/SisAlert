@@ -9,7 +9,7 @@ export default function Layout() {
       <header className="topbar">
         <span className="marca">🌊 Alertas Villavicencio</span>
         <nav className="menu">
-          <NavLink to="/estaciones">Estaciones</NavLink>
+          <NavLink to="/estaciones">Tablero</NavLink>
           <NavLink to="/alertas">Alertas</NavLink>
         </nav>
         <div className="sesion">
