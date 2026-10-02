@@ -1,48 +1,33 @@
-// Tablero: estado actual de la zona (semáforo, nivel y tendencia).
-// Se consulta el alertas-service cada 5 segundos, como indica el contrato.
+// Tablero: semáforo por zona con la alerta vigente que calcula el alertas-service.
+// Se consulta GET /api/alertas cada 5 segundos; el botón "Sincronizar" hace la escritura
+// real (POST /api/lecturas/sincronizar): el servicio trae lluvia, guarda las lecturas y
+// recalcula las alertas, registrando el usuario que viene en el token.
 
 import { useEffect, useState } from 'react'
 import ChipModoDemo from '../components/ChipModoDemo'
-import { getEstadoZona } from '../api/alertasApi'
+import { getAlertas, sincronizar } from '../api/alertasApi'
+import { fechaLocal, milimetros } from '../utils/formato'
 
 const INTERVALO_MS = 5000
 
-const DESCRIPCION_NIVEL = {
-  verde: 'Nivel normal, sin aviso',
-  amarillo: 'Supera el umbral de vigilancia',
-  naranja: 'Supera el umbral de alerta',
-  rojo: 'Desbordamiento inminente',
-}
-
-function metros(valor) {
-  return Number(valor ?? 0).toFixed(2)
-}
-
-function fechaLocal(iso) {
-  if (!iso) return '—'
-  const fecha = new Date(iso)
-  if (Number.isNaN(fecha.getTime())) return '—'
-  return fecha.toLocaleString('es-CO', {
-    timeZone: 'America/Bogota',
-    dateStyle: 'short',
-    timeStyle: 'short',
-  })
-}
-
 export default function EstacionesPage() {
-  const [estado, setEstado] = useState(null)
+  const [zonas, setZonas] = useState([])
   const [error, setError] = useState(null)
   const [cargando, setCargando] = useState(true)
+  const [sincronizando, setSincronizando] = useState(false)
+  const [aviso, setAviso] = useState(null)
   const [intento, setIntento] = useState(0)
+
+  const refrescar = () => setIntento((i) => i + 1)
 
   useEffect(() => {
     let cancelado = false
 
     async function traer() {
       try {
-        const datos = await getEstadoZona()
+        const datos = await getAlertas()
         if (!cancelado) {
-          setEstado(datos)
+          setZonas(datos)
           setError(null)
         }
       } catch (e) {
@@ -60,23 +45,47 @@ export default function EstacionesPage() {
     }
   }, [intento])
 
-  const nivel = estado?.nivelAlerta ?? 'verde'
-  const tendencia = Number(estado?.tendenciaMetrosHora ?? 0)
-  const umbrales = Object.entries(estado?.umbrales ?? {})
+  async function onSincronizar() {
+    setSincronizando(true)
+    setAviso(null)
+    try {
+      setZonas(await sincronizar())
+      setAviso({ tipo: 'exito', texto: 'Lecturas sincronizadas y alertas recalculadas.' })
+    } catch (e) {
+      // 502: el servicio respondió pero la fuente de datos externa falló
+      setAviso({ tipo: 'error', texto: e.message })
+    } finally {
+      setSincronizando(false)
+    }
+  }
+
+  const sinDatos = zonas.length > 0 && zonas.every((z) => z.nivel == null)
 
   return (
     <section className="tablero">
       <header className="barra-superior">
         <div>
-          <h2>Tablero de la zona</h2>
+          <h2>Tablero de zonas</h2>
           <p className="vacio">Se actualiza cada 5 segundos</p>
         </div>
-        <ChipModoDemo onReintentar={() => setIntento((i) => i + 1)} />
+        <div className="acciones-tablero">
+          <ChipModoDemo onReintentar={refrescar} />
+          <button
+            type="button"
+            className="btn-primario"
+            disabled={sincronizando || (cargando && !zonas.length)}
+            onClick={onSincronizar}
+          >
+            {sincronizando ? 'Sincronizando…' : 'Sincronizar lecturas'}
+          </button>
+        </div>
       </header>
 
-      {cargando && !estado && <p className="vacio">Cargando el estado de la zona…</p>}
+      {aviso && <p className={aviso.tipo}>{aviso.texto}</p>}
 
-      {!cargando && !estado && error && (
+      {cargando && !zonas.length && <p className="vacio">Cargando zonas…</p>}
+
+      {!cargando && !zonas.length && error && (
         <div className="aviso-error">
           <p className="error">{error}</p>
           <button
@@ -84,7 +93,7 @@ export default function EstacionesPage() {
             className="btn-primario"
             onClick={() => {
               setCargando(true)
-              setIntento((i) => i + 1)
+              refrescar()
             }}
           >
             Reintentar
@@ -92,54 +101,45 @@ export default function EstacionesPage() {
         </div>
       )}
 
-      {estado && (
-        <article className="tarjeta-zona">
-          <div className="zona-nombre">
-            <span className={`semaforo semaforo--${nivel}`} aria-hidden="true" />
-            <div>
-              <h3>{estado.zonaNombre}</h3>
-              <span className="zona-id">{estado.zonaId}</span>
-            </div>
-            <span className={`badge badge--${nivel}`}>{nivel}</span>
-          </div>
-
-          <p className="nivel-descripcion">{DESCRIPCION_NIVEL[nivel] ?? ''}</p>
-
-          <div className="zona-metricas">
-            <div className="metrica">
-              <span className="metrica-valor">{metros(estado.nivelMetros)} m</span>
-              <span className="metrica-etiqueta">Nivel actual</span>
-            </div>
-            <div className="metrica">
-              <span className={`metrica-valor ${tendencia >= 0 ? 'sube' : 'baja'}`}>
-                {tendencia >= 0 ? '↑' : '↓'} {metros(Math.abs(tendencia))} m/h
-              </span>
-              <span className="metrica-etiqueta">Tendencia de subida</span>
-            </div>
-            <div className="metrica">
-              <span className="metrica-valor">{fechaLocal(estado.actualizadoEn)}</span>
-              <span className="metrica-etiqueta">Última lectura</span>
-            </div>
-          </div>
-
-          {umbrales.length > 0 && (
-            <div className="umbrales">
-              <h4>Umbrales de la zona</h4>
-              <ul>
-                {umbrales.map(([nombre, valor]) => (
-                  <li key={nombre}>
-                    <span className={`punto punto--${nombre}`} aria-hidden="true" />
-                    <span className="umbral-nombre">{nombre}</span>
-                    <span className="umbral-valor">{metros(valor)} m</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {error && <p className="error">No se pudo actualizar: {error}</p>}
-        </article>
+      {sinDatos && (
+        <p className="vacio">
+          Todavía no hay lecturas. Pulsa «Sincronizar lecturas» para consultar la fuente de datos.
+        </p>
       )}
+
+      {zonas.length > 0 && (
+        <div className="zonas-grid">
+          {zonas.map((z) => (
+            <article key={z.zonaId} className="tarjeta-zona">
+              <div className="zona-nombre">
+                <span className={`semaforo semaforo--${z.color}`} aria-hidden="true" />
+                <div>
+                  <h3>{z.zona}</h3>
+                  <span className="zona-id">{z.cuerpoAgua}</span>
+                </div>
+                <span className={`badge badge--${z.color}`}>{z.etiqueta}</span>
+              </div>
+
+              <p className="nivel-descripcion">{z.mensaje ?? 'Sin lecturas todavía.'}</p>
+
+              <div className="zona-metricas">
+                <div className="metrica">
+                  <span className="metrica-valor">{milimetros(z.precipitacionMm)}</span>
+                  <span className="metrica-etiqueta">Lluvia acumulada del día</span>
+                </div>
+                <div className="metrica">
+                  <span className="metrica-valor metrica-valor--chica">{fechaLocal(z.fechaHora)}</span>
+                  <span className="metrica-etiqueta">Última lectura</span>
+                </div>
+              </div>
+
+              <p className="alerta-meta">Comunidades: {z.comunidades}</p>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {error && zonas.length > 0 && <p className="error">No se pudo actualizar: {error}</p>}
     </section>
   )
 }
