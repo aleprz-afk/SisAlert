@@ -5,6 +5,8 @@ function extraerMensaje(data, status) {
   if (typeof data === 'string' && data.trim()) return data
   if (data?.errors) return Object.values(data.errors).flat().join(' ')
   if (data?.message) return data.message
+  // Formato de error del contrato: { "error": "...", "codigo": "..." }
+  if (data?.error) return data.error
   if (data?.title) return data.title
   if (status >= 500) return 'No se pudo conectar con el servidor. ¿Está corriendo el servicio?'
   return `Error ${status}`
@@ -35,7 +37,7 @@ export async function apiFetch(url, options = {}) {
   }
 
   const text = await res.text()
-  let data = null
+  let data
   try {
     data = text ? JSON.parse(text) : null
   } catch {
