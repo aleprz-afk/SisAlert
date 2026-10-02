@@ -7,7 +7,7 @@ export async function login(usernameOrEmail, password) {
     method: 'POST',
     body: JSON.stringify({ usernameOrEmail, password }),
   })
-  const token = data?.token ?? data?.accessToken // ajusta según lo que viste en el Paso 1
+  const token = data?.token ?? data?.accessToken 
   if (!token) throw new Error('La respuesta del login no trae token')
   return token
 }

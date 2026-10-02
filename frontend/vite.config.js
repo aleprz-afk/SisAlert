@@ -6,10 +6,17 @@ export default defineConfig({
   server: {
     proxy: {
       '/auth-api': {
-        target: 'http://localhost:5132', // el puerto del Paso 1
+        // API de autenticación del profesor (.NET)
+        target: 'http://localhost:5132', 
         changeOrigin: true,
         secure: false,
         rewrite: (p) => p.replace(/^\/auth-api/, ''),
+      },
+      // Microservicio de alertas (Spring Boot)
+      '/alertas-api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/alertas-api/, ''),
       },
     },
   },
