@@ -1,23 +1,32 @@
-// Consumo del Servicio de Alertas (según la pestaña "Contrato de mensajes").
+// Consumo del alertas-service (Spring Boot) con el contrato que expone hoy:
 //
-// Todas las llamadas pasan por apiFetch, que agrega el Authorization: Bearer <token>.
+//   GET  /api/zonas                → [{ id, nombre, cuerpoAgua, comunidades }]
+//   GET  /api/alertas              → una entrada por zona con su alerta vigente
+//   POST /api/lecturas/sincronizar → consulta la fuente, guarda lecturas, recalcula
+//                                    las alertas y devuelve la misma lista de /api/alertas
 //
-// Mientras el alertas-service no esté corriendo se usan los datos de demostración de
-// alertasMock.js: si el servidor no responde (o devuelve 5xx) la llamada cae en el mock
-// y se avisa en consola y en pantalla. Se puede controlar con la variable de entorno
-// VITE_MOCK_ALERTAS:
+// Cada entrada de /api/alertas (AlertaDto):
+//   { zonaId, zona, cuerpoAgua, comunidades,
+//     nivel: 'NORMAL' | 'PRECAUCION' | 'PELIGRO' | null,
+//     mensaje, precipitacionMm, fechaHora }
+// nivel/mensaje/precipitacionMm/fechaHora van en null mientras no se haya sincronizado.
+//
+// Todas las llamadas pasan por apiFetch, que agrega Authorization: Bearer <token>
+// (el servicio lee el usuario del token para registrar quién sincronizó).
+//
+// Modo demostración (alertasMock.js), controlado con VITE_MOCK_ALERTAS:
 //   - 'true'  → siempre datos de demostración
-//   - 'false' → siempre el servicio real (si no responde, falla a la vista)
-//   - sin definir (por defecto) → automático, el modo que se usa en la demo
+//   - 'false' → siempre el servicio real (si no responde, el error se muestra)
+//   - sin definir → automático: solo cae al mock si el servicio NO está corriendo.
+//     Si el servicio responde un 502 propio (falló la fuente externa), se muestra el
+//     error en pantalla en lugar de taparlo con datos de demostración.
 
 import { apiFetch } from './apiClient'
 import * as mock from './alertasMock'
 
 const BASE = '/alertas-api/api'
 
-export const ZONA_DEFECTO = 'cano-buque-bajo'
-
-const CONFIGURADO = import.meta.env.VITE_MOCK_ALERTAS
+const CONFIGURADO = import.meta.env?.VITE_MOCK_ALERTAS
 
 export const mockForzado = CONFIGURADO === 'true'
 
@@ -32,36 +41,55 @@ function avisar(motivo) {
   )
 }
 
+function servicioCaido(e) {
+  if (e.status === undefined) return true
+  if (e.status === 502) return !String(e.cuerpo ?? '').includes('FUENTE_EXTERNA')
+  return [500, 503, 504].includes(e.status)
+}
+
 async function ejecutar(llamarServicio, llamadaDemo) {
   if (usandoMock) return llamadaDemo()
   try {
     return await llamarServicio()
   } catch (e) {
-    const sinServicio = e.status === undefined || e.status >= 500
-    if (CONFIGURADO === 'false' || !sinServicio) throw e
+    if (CONFIGURADO === 'false' || !servicioCaido(e)) throw e
     usandoMock = true
     avisar('El alertas-service no responde')
     return llamadaDemo()
   }
 }
 
-export const getEstadoZona = (zonaId = ZONA_DEFECTO) =>
-  ejecutar(
-    () => apiFetch(`${BASE}/zonas/${encodeURIComponent(zonaId)}/estado`),
-    () => mock.obtenerEstadoZona(zonaId),
+// Cómo se pinta cada nivel del backend en el semáforo.
+export const NIVELES = {
+  NORMAL: { color: 'verde', etiqueta: 'Normal', orden: 1 },
+  PRECAUCION: { color: 'amarillo', etiqueta: 'Precaución', orden: 2 },
+  PELIGRO: { color: 'rojo', etiqueta: 'Peligro', orden: 3 },
+}
+const SIN_DATOS = { color: 'sin-datos', etiqueta: 'Sin datos', orden: 0 }
+
+// Agrega color/etiqueta/orden a cada entrada para que las pantallas no repitan la lógica.
+export function normalizar(lista) {
+  return (Array.isArray(lista) ? lista : []).map((a) => ({
+    ...a,
+    ...(NIVELES[a.nivel] ?? SIN_DATOS),
+  }))
+}
+
+export const getZonas = () =>
+  ejecutar(() => apiFetch(`${BASE}/zonas`), () => mock.listarZonas())
+
+export const getAlertas = async () =>
+  normalizar(
+    await ejecutar(() => apiFetch(`${BASE}/alertas`), () => mock.listarAlertas()),
   )
 
-export const getAlertas = (zonaId = ZONA_DEFECTO) =>
-  ejecutar(
-    () => apiFetch(`${BASE}/alertas?zonaId=${encodeURIComponent(zonaId)}`),
-    () => mock.listarAlertas(zonaId),
-  )
-
-// La funcionalidad de negocio del MVP: sin cuerpo, el servicio lee el usuario del token.
-export const reconocerAlerta = (alertaId) =>
-  ejecutar(
-    () => apiFetch(`${BASE}/alertas/${encodeURIComponent(alertaId)}/reconocer`, { method: 'POST' }),
-    () => mock.reconocer(alertaId),
+// La operación de escritura del MVP: el servicio registra lecturas y recalcula alertas.
+export const sincronizar = async () =>
+  normalizar(
+    await ejecutar(
+      () => apiFetch(`${BASE}/lecturas/sincronizar`, { method: 'POST' }),
+      () => mock.sincronizar(),
+    ),
   )
 
 export const enModoDemostracion = () => usandoMock

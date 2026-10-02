@@ -16,7 +16,8 @@ function extraerMensaje(data, status) {
   if (data && typeof data === 'object') {
     if (data.errors) return Object.values(data.errors).flat().join(' ')
     if (data.message) return data.message
-    // Formato de error del contrato: { "error": "...", "codigo": "..." }
+    // alertas-service responde { "error": "CODIGO", "mensaje": "texto legible" }
+    if (data.mensaje) return data.mensaje
     if (data.error) return data.error
     if (data.title) return data.title
   }
