@@ -1,16 +1,37 @@
-# React + Vite
+# Frontend — Alertas Villavicencio
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicación React + Vite. Consume la API de autenticación del docente y el microservicio `alertas-service`.
 
-Currently, two official plugins are available:
+## Requisitos
+- Node.js 20 o superior
+- API de autenticación del docente corriendo (mini-identity-api-dotnet) en `http://localhost:5132`
+- `alertas-service` corriendo en `http://localhost:8080`
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Ejecutar en local
+```bash
+npm install
+npm run dev
+```
+Abrir http://localhost:5173
 
-## React Compiler
+## Proxy de desarrollo (vite.config.js)
+| Prefijo en el frontend | Destino |
+| --- | --- |
+| `/auth-api/*` | API de autenticación (.NET) — `http://localhost:5132` |
+| `/alertas-api/*` | alertas-service (Spring Boot) — `http://localhost:8080` |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Autenticación
+1. `LoginPage` envía las credenciales a `POST /api/auth/login`.
+2. El JWT recibido se guarda en `sessionStorage` (`AuthContext`).
+3. `apiFetch` (`src/api/apiClient.js`) agrega `Authorization: Bearer <token>` a todas las peticiones.
+4. Si un servicio responde 401, la sesión se cierra y se vuelve al login.
+5. Las rutas dentro de `RutaProtegida` solo son accesibles con sesión iniciada.
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Estructura
+```
+src/
+├── api/          apiClient.js, authApi.js, alertasApi.js
+├── context/      AuthContext.jsx
+├── components/   RutaProtegida.jsx, Layout.jsx
+└── pages/        LoginPage, RegistroPage, EstacionesPage, AlertasPage
+```
