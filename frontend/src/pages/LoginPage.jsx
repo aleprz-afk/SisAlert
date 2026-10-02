@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { mensajeDeLogin } from '../api/authApi'
 
 export default function LoginPage() {
   const { login, isAuthenticated } = useAuth()
@@ -24,7 +25,7 @@ export default function LoginPage() {
       await login(usuario, password)
       navigate('/estaciones', { replace: true })
     } catch (err) {
-      setError([400, 401].includes(err.status) ? 'Usuario o contraseña incorrectos' : err.message)
+      setError(mensajeDeLogin(err))
     } finally {
       setCargando(false)
     }

@@ -1,14 +1,31 @@
 // Cliente HTTP común para todos los servicios.
 // Adjunta el JWT automáticamente y normaliza los errores.
 
+// Cuerpos que jamás deben mostrarse en pantalla: HTML o stack trace del servidor.
+function cuerpoLegible(data) {
+  if (typeof data !== 'string') return null
+  const texto = data.trim()
+  if (!texto) return null
+  if (texto.startsWith('<')) return null // página HTML de error
+  if (/(^|\n)\s+at\s/.test(texto)) return null // stack trace de .NET o Node
+  if (texto.length > 300) return null // demasiado largo para una persona
+  return texto
+}
+
 function extraerMensaje(data, status) {
-  if (typeof data === 'string' && data.trim()) return data
-  if (data?.errors) return Object.values(data.errors).flat().join(' ')
-  if (data?.message) return data.message
-  // Formato de error del contrato: { "error": "...", "codigo": "..." }
-  if (data?.error) return data.error
-  if (data?.title) return data.title
+  if (data && typeof data === 'object') {
+    if (data.errors) return Object.values(data.errors).flat().join(' ')
+    if (data.message) return data.message
+    // Formato de error del contrato: { "error": "...", "codigo": "..." }
+    if (data.error) return data.error
+    if (data.title) return data.title
+  }
+  const texto = cuerpoLegible(data)
+  if (texto) return texto
   if (status >= 500) return 'No se pudo conectar con el servidor. ¿Está corriendo el servicio?'
+  if (status === 401) return 'No autorizado: la sesión es inválida o ha vencido.'
+  if (status === 404) return 'No se encontró el recurso solicitado.'
+  if (status === 409) return 'La operación entró en conflicto con el estado actual.'
   return `Error ${status}`
 }
 
@@ -47,6 +64,9 @@ export async function apiFetch(url, options = {}) {
   if (!res.ok) {
     const err = new Error(extraerMensaje(data, res.status))
     err.status = res.status
+    // Cuerpo crudo, por si el llamador necesita inspeccionarlo: el login lo usa para
+    // reconocer las credenciales inválidas que la API devuelve como stack trace.
+    err.cuerpo = typeof data === 'string' ? data : JSON.stringify(data ?? '')
     throw err
   }
 

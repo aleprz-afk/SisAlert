@@ -19,3 +19,16 @@ export const register = (username, email, password) =>
   })
 
 export const getProfile = () => apiFetch('/auth-api/api/demo/profile')
+
+// La API del profesor responde 500 con un stack trace cuando las credenciales son
+// incorrectas, en lugar de un 401: esto lo traduce a un mensaje apto para pantalla.
+export function mensajeDeLogin(err) {
+  if ([400, 401].includes(err.status)) return 'Usuario o contraseña incorrectos'
+  if (err.status === 500 && /invalid credentials/i.test(err.cuerpo ?? '')) {
+    return 'Usuario o contraseña incorrectos'
+  }
+  if (err.status >= 500) {
+    return 'No se pudo iniciar sesión. El servidor de autenticación no respondió correctamente.'
+  }
+  return err.message
+}
