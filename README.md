@@ -11,6 +11,6 @@
 | 3 | Nicolás Villarraga | Microservicio de alertas: Endpoints, modelo y umbrales |
 | 4 | Eduar Murcia | Consumo de datos externos (IDEAM), diagramas y README |
 
-![Arquitectura del MVP](docs/arquitectura.png)
 
-## Estructura del Proyecto
+## Diagrama de arquitectura del Proyecto
+![Arquitectura del MVP](docs/arquitectura.png)
