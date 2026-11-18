@@ -88,15 +88,13 @@ cd SisAlert/alertas-service
 mvnw.cmd spring-boot:run        # Windows
 ```
  
-Queda escuchando en `http://localhost:8081`. Al arrancar carga la zona de ejemplo `cano-buque-bajo` y empieza a simular el nivel del caño. Los datos están en H2 en memoria y se reinician con el servicio.
- 
-El servicio valida el token que emite la API de autenticación con la misma clave, emisor y audiencia. Los valores por defecto ya coinciden con los de la API del docente; si se cambian allá, hay que cambiarlos aquí con variables de entorno:
- 
-| Variable | Valor por defecto |
-|---|---|
-| `JWT_KEY` | el mismo `Jwt:Key` del `appsettings.json` de la API |
-| `JWT_ISSUER` | `MiniIdentityApi` |
-| `JWT_AUDIENCE` | `MiniIdentityApiUsers` |
+Queda escuchando en `http://localhost:8081`. Al arrancar carga las zonas de riesgo en H2 (en memoria, se reinician con el servicio); las zonas empiezan sin lecturas hasta que se sincroniza.
+
+Las pruebas unitarias se corren con `./mvnw test` (en Windows, `mvnw.cmd test`). La consola de H2 está en `http://localhost:8081/h2-console` con JDBC URL `jdbc:h2:mem:alertasdb`, usuario `sa` y sin contraseña.
+
+La fuente de datos se elige en `application.properties` con `alertas.fuente` (`simulada` genera lluvia aleatoria entre 0 y 90 mm). Los umbrales de alerta están en el mismo archivo (`alertas.umbral.precaucion-mm` y `alertas.umbral.peligro-mm`) y se cambian sin recompilar.
+
+El microservicio lee el usuario del token solo para registrar en el log quién sincronizó; **no valida la firma** del token en esta etapa (ver `docs/infraestructura.md` §7).
  
 ### 3. Frontend (terminal 3)
  
@@ -107,34 +105,36 @@ npm run dev
 ```
  
 Abrir **http://localhost:5173** e iniciar sesión con `admin` / `Admin123*`.
- 
+
+Recorrido de la demostración:
+
+1. **Tablero** (`/estaciones`): una tarjeta por zona. Al arrancar todas aparecen en gris como "Sin datos".
+2. Botón **Sincronizar lecturas**: el microservicio consulta la fuente de datos, guarda las lecturas y recalcula el nivel de cada zona (verde, amarillo o rojo).
+3. **Alertas** (`/alertas`): solo las zonas en precaución o peligro, la más grave primero.
+
 ## Endpoints del microservicio de alertas
- 
-Todos exigen la cabecera `Authorization: Bearer <token>`. Sin token responden `401`.
- 
+
 | Método | Ruta | Qué hace |
 |---|---|---|
-| GET | `/api/zonas/{zonaId}/estado` | Nivel actual, color del semáforo, tendencia y umbrales de la zona |
-| GET | `/api/alertas?zonaId={zonaId}` | Alertas de la zona, de la más reciente a la más antigua |
-| POST | `/api/alertas/{alertaId}/reconocer` | Marca la alerta como vista; el usuario se toma del token |
- 
+| GET | `/api/zonas` | Lista de zonas de riesgo |
+| GET | `/api/alertas` | Una entrada por zona con su alerta vigente (`nivel` en `null` si aún no hay lecturas) |
+| POST | `/api/lecturas/sincronizar` | Consulta la fuente externa, guarda las lecturas y recalcula las alertas; devuelve lo mismo que `GET /api/alertas` |
+
+Los niveles son `NORMAL`, `PRECAUCION` y `PELIGRO`. Si la fuente externa falla, `sincronizar` responde `502` con `{"error":"FUENTE_EXTERNA_NO_DISPONIBLE","mensaje":"..."}` y no cambia ninguna alerta. El detalle de cada respuesta está en `docs/aplicacion.md` §5.
+
 ## Comprobación rápida desde la terminal
- 
-Con los dos servicios corriendo:
- 
+
+Con el microservicio corriendo (en PowerShell usar `curl.exe` en vez de `curl`):
+
 ```bash
-# 1. Pedir un token
-curl -s -X POST http://localhost:5132/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"usernameOrEmail":"admin","password":"Admin123*"}'
- 
-# 2. Copiar el token de la respuesta y consultar la zona
-TOKEN="pegar-aquí-el-token"
-curl -s http://localhost:8081/api/zonas/cano-buque-bajo/estado \
-  -H "Authorization: Bearer $TOKEN"
- 
-# 3. Sin token debe responder 401
-curl -i http://localhost:8081/api/zonas/cano-buque-bajo/estado
+# 1. Zonas cargadas al arrancar
+curl -s http://localhost:8081/api/zonas
+
+# 2. Alertas antes de sincronizar: nivel en null
+curl -s http://localhost:8081/api/alertas
+
+# 3. Sincronizar: devuelve cada zona con su nivel, mensaje y lluvia en mm
+curl -s -X POST http://localhost:8081/api/lecturas/sincronizar
 ```
  
 ## Modo demostración del frontend
@@ -156,7 +156,8 @@ Para la sustentación se usa `VITE_MOCK_ALERTAS=false`, así queda claro que los
 | "No se pudo conectar con el servidor" al iniciar sesión | La API de autenticación no está corriendo o está en otro puerto | Revisar la terminal 1 y que diga `http://localhost:5132` |
 | "Usuario o contraseña incorrectos" con un usuario recién creado | Se reinició la API y se borró de la memoria | Registrarlo otra vez o usar `admin` |
 | El tablero muestra el aviso de modo demostración | El microservicio de alertas no responde en 8081 | Revisar la terminal 2 y pulsar **Reintentar** |
-| El servicio de alertas responde 401 con un token válido | La clave JWT no coincide con la de la API | Revisar `JWT_KEY`, `JWT_ISSUER` y `JWT_AUDIENCE` |
+| Todas las zonas aparecen en "Sin datos" | Todavía no se ha sincronizado | Pulsar **Sincronizar lecturas** en el tablero |
+| "No fue posible consultar la fuente de datos meteorológicos" al sincronizar | La fuente externa no respondió (502) | Revisar la conexión; las alertas anteriores se conservan |
 | `Port 8081 was already in use` | Otra aplicación usa el puerto | Cerrarla, o cambiar `server.port` en `application.properties` y el destino en `frontend/vite.config.js` |
 | `./mvnw: Permission denied` | Falta permiso de ejecución | `chmod +x mvnw` |
  
