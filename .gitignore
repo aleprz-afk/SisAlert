@@ -14,3 +14,7 @@ dist/
 .idea/
 *.swp
 .DS_Store
+
+# Configuración local de Claude Code
+.claude/
+CLAUDE.local.md

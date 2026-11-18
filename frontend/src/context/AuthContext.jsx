@@ -1,7 +1,6 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import * as authApi from '../api/authApi'
-
-const AuthContext = createContext(null)
+import { AuthContext } from './sesionContext'
 
 // .NET puede guardar el nombre del usuario en cualquiera de estos claims
 const CLAIMS_NOMBRE = [
@@ -71,8 +70,4 @@ export function AuthProvider({ children }) {
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-export function useAuth() {
-  return useContext(AuthContext)
 }
