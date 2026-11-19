@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import co.edu.unillanos.sisalert.alertas.client.ClienteDatosExternos;
 import co.edu.unillanos.sisalert.alertas.dto.AlertaDto;
+import co.edu.unillanos.sisalert.alertas.dto.LecturaDto;
 import co.edu.unillanos.sisalert.alertas.exception.FuenteExternaException;
 import co.edu.unillanos.sisalert.alertas.model.Alerta;
 import co.edu.unillanos.sisalert.alertas.model.Lectura;
@@ -73,5 +74,21 @@ public class SincronizacionService {
             alertaRepository.save(new Alerta(m.zona(), nivel, regla.mensajePara(nivel), ahora));
         }
         return alertaService.listarVigentes();
+    }
+
+    /**
+     * Consulta el historial reciente de lecturas (hasta las últimas 20)
+     * registradas para una cuenca específica.
+     */
+    @Transactional(readOnly = true)
+    public List<LecturaDto> obtenerHistorico(Long zonaId) {
+        return lecturaRepository.findTop20ByZonaIdOrderByFechaHoraDesc(zonaId).stream()
+                .map(l -> new LecturaDto(
+                        l.getId(),
+                        l.getZona().getId(),
+                        l.getPrecipitacionMm(),
+                        l.getFechaHora(),
+                        l.getFuente()))
+                .toList();
     }
 }

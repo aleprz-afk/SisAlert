@@ -519,3 +519,229 @@ input:focus, select:focus { outline: 2px solid var(--azul); border-color: transp
   color: var(--gris);
   cursor: pointer;
 }
+
+/* ---------- Modal de Histórico y Tendencia ---------- */
+.zona-pie-acciones {
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px dashed var(--borde);
+}
+
+.btn-ver-tendencia {
+  width: 100%;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: var(--azul-oscuro);
+  font-weight: 600;
+  padding: 0.5rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.15s ease;
+}
+
+.btn-ver-tendencia:hover {
+  background: #e2e8f0;
+  border-color: var(--azul);
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 1000;
+}
+
+.modal-contenido {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 650px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.modal-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--borde);
+  padding-bottom: 0.8rem;
+}
+
+.btn-modal-cerrar {
+  background: #f1f5f9;
+  border: none;
+  font-size: 1.2rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: var(--gris);
+}
+
+.btn-modal-cerrar:hover {
+  background: #e2e8f0;
+  color: #000;
+}
+
+.tarjeta-tendencia {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.icono-tendencia {
+  font-size: 1.8rem;
+}
+
+.tendencia-valor {
+  margin: 0.2rem 0 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.tendencia-valor--ascenso { color: var(--rojo); }
+.tendencia-valor--descenso { color: var(--verde); }
+.tendencia-valor--estable { color: var(--azul); }
+
+/* Histograma de barras */
+.histograma-wrap {
+  position: relative;
+  height: 180px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.8rem 1rem 1.8rem;
+  margin: 0.5rem 0;
+}
+
+.guia-umbral {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-bottom: 1.5px dashed;
+  pointer-events: none;
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 0.5rem;
+}
+
+.guia-umbral span {
+  font-size: 0.72rem;
+  font-weight: bold;
+  transform: translateY(-50%);
+  background: #fff;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+.guia-peligro { border-color: #ef4444; }
+.guia-peligro span { color: #dc2626; }
+.guia-precaucion { border-color: #f59e0b; }
+.guia-precaucion span { color: #d97706; }
+
+.barras-contenedor {
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.barra-item {
+  flex: 1;
+  min-width: 32px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.barra-col {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 2px;
+  transition: height 0.3s ease;
+}
+
+.barra-valor {
+  font-size: 0.7rem;
+  color: #fff;
+  font-weight: bold;
+}
+
+.barra-hora {
+  font-size: 0.7rem;
+  color: var(--gris);
+  margin-top: 0.3rem;
+  white-space: nowrap;
+}
+
+/* Tabla histórico */
+.tabla-historico-wrap {
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+}
+
+.tabla-historico {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.tabla-historico th,
+.tabla-historico td {
+  padding: 0.5rem 0.8rem;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.tabla-historico th {
+  background: #f8fafc;
+  color: #475569;
+  position: sticky;
+  top: 0;
+}
+
+.fuente-tag {
+  background: #e2e8f0;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.modal-pie {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid var(--borde);
+  padding-top: 0.8rem;
+}
