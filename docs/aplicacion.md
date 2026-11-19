@@ -8,7 +8,7 @@
 
 ## 1. Objetivo
 
-Describir qué hace el sistema desde el punto de vista del usuario y cómo está organizado por dentro: pantallas del frontend, capas del microservicio de alertas, endpoints y reglas de negocio. Los valores marcados como **[completar]** se cierran durante la implementación.
+Describir qué hace el sistema desde el punto de vista del usuario y cómo está organizado por dentro: pantallas del frontend, capas del microservicio de alertas, endpoints y reglas de negocio.
 
 ---
 
@@ -38,7 +38,7 @@ El **CU-03 es la funcionalidad de negocio** que se demuestra en la sustentación
 | `PRECAUCION` | Lluvia acumulada relevante; se recomienda estar atento | Amarillo |
 | `PELIGRO` | Lluvia intensa; posible creciente, se recomienda prepararse para evacuar | Rojo |
 
-Una zona que aún no tiene lecturas se muestra como "Sin datos" en gris. No es un nivel de alerta, sino un estado de pantalla que indica que falta pulsar "Actualizar datos".
+Una zona que aún no tiene lecturas se muestra como "Sin datos" en gris. No es un nivel de alerta, sino un estado de pantalla que indica que falta pulsar "Sincronizar lecturas" en el tablero.
 
 ### 2.4 Fuera de alcance del MVP
 
@@ -60,37 +60,45 @@ Tecnología: React con Vite. El frontend solo presenta información y llama a lo
 
 | Pantalla | Ruta | Acceso | Función |
 |---|---|---|---|
-| Login | `/login` | Público | Formulario de usuario o correo y contraseña |
-| Alertas | `/alertas` | Solo con sesión iniciada | Lista de zonas con su nivel, botón "Actualizar datos" y botón "Cerrar sesión" |
+| Login | `/login` | Público | Formulario de usuario o correo y contraseña, con enlace al registro |
+| Registro | `/registro` | Público | Crea un usuario en la API de autenticación |
+| Tablero | `/estaciones` | Solo con sesión iniciada | Una tarjeta por zona con su nivel y el botón "Sincronizar lecturas" (CU-02 y CU-03) |
+| Alertas | `/alertas` | Solo con sesión iniciada | Solo las zonas en `PRECAUCION` o `PELIGRO`, la más grave primero (CU-02) |
 
-La ruta `/` redirige a `/alertas` si hay sesión, o a `/login` si no la hay.
+La barra superior (`Layout`) muestra el usuario y el botón "Salir" en las pantallas con sesión. Cualquier otra ruta redirige a `/estaciones`, y `RutaProtegida` envía a `/login` si no hay sesión.
 
 ### 3.2 Comportamiento de cada pantalla
 
 **Login**
 
 1. El usuario escribe usuario o correo y contraseña.
-2. Si algún campo está vacío, se muestra un mensaje y no se envía la petición.
+2. Si algún campo está vacío, el formulario no se envía.
 3. Se llama al login de la API de autenticación.
-4. Si es exitoso, se guarda el token en `sessionStorage` y se navega a `/alertas`.
-5. Si falla, se muestra "Credenciales incorrectas" (o "No se pudo conectar con el servicio" si no hubo respuesta).
+4. Si es exitoso, se guarda el token en `sessionStorage` y se navega a `/estaciones`.
+5. Si falla, se muestra "Usuario o contraseña incorrectos" (o un mensaje de servicio no disponible si no hubo respuesta).
 6. Mientras espera la respuesta, el botón queda deshabilitado.
+
+**Tablero**
+
+1. Al abrir la pantalla, consulta las alertas vigentes (CU-02) y repite la consulta cada 5 segundos.
+2. Muestra una tarjeta por zona con su nombre, cuerpo de agua, comunidades, nivel (con color), mensaje, lluvia acumulada en mm y fecha y hora de la última lectura.
+3. El botón "Sincronizar lecturas" ejecuta el CU-03 y muestra la lista actualizada que devuelve el servicio.
+4. "Salir" borra el token y regresa a `/login`.
 
 **Alertas**
 
-1. Al abrir la pantalla, consulta las alertas vigentes (CU-02).
-2. Muestra una tarjeta por zona con su nombre, cuerpo de agua, comunidades, nivel (con color), precipitación y fecha y hora de la última actualización.
-3. El botón "Actualizar datos" ejecuta el CU-03 y, al terminar, vuelve a mostrar la lista.
-4. "Cerrar sesión" borra el token y regresa a `/login`.
+1. Usa la misma consulta del tablero y filtra en el navegador las zonas en `PRECAUCION` o `PELIGRO`.
+2. Si ninguna zona está en riesgo, lo dice; si aún no hay lecturas, indica que se sincronice desde el tablero.
 
-Estados que debe manejar la pantalla de alertas:
+Estados que manejan las pantallas:
 
 | Estado | Qué se muestra |
 |---|---|
 | Cargando | Indicador de carga |
-| Sin datos | Zonas en gris con el texto "Sin datos; pulse Actualizar datos" |
+| Sin datos | Zonas en gris con "Sin datos" y la indicación de pulsar "Sincronizar lecturas" |
 | Con datos | Tarjetas de color según el nivel |
-| Error | Mensaje claro y las alertas anteriores, si las había |
+| Error | Mensaje claro y las zonas que ya se mostraban, si las había |
+| Modo demostración | Aviso visible cuando el microservicio no responde y se usan datos simulados (ver README) |
 
 ### 3.3 Organización del código
 
@@ -98,25 +106,37 @@ Estados que debe manejar la pantalla de alertas:
 frontend/src/
 ├── pages/
 │   ├── LoginPage.jsx
-│   └── AlertasPage.jsx
+│   ├── RegistroPage.jsx
+│   ├── EstacionesPage.jsx    # Tablero de zonas y botón "Sincronizar lecturas"
+│   └── AlertasPage.jsx       # Zonas en precaución o peligro
 ├── components/
-│   ├── ZonaCard.jsx          # Tarjeta de una zona con su color de nivel
-│   └── RutaProtegida.jsx     # Redirige a /login si no hay token
-├── services/
-│   ├── authService.js        # Llamadas a la API de autenticación
-│   └── alertasService.js     # Llamadas al microservicio de alertas
+│   ├── Layout.jsx            # Barra superior con usuario y "Salir"
+│   ├── RutaProtegida.jsx     # Redirige a /login si no hay token
+│   └── ChipModoDemo.jsx      # Aviso de modo demostración
+├── context/
+│   ├── AuthContext.jsx       # AuthProvider: token, login, registro y cierre de sesión
+│   ├── sesionContext.js      # El contexto de React de la sesión
+│   └── useAuth.js            # Hook para leer la sesión desde las pantallas
+├── api/
+│   ├── apiClient.js          # fetch común: agrega el token y normaliza errores
+│   ├── authApi.js            # Llamadas a la API de autenticación
+│   ├── alertasApi.js         # Llamadas al microservicio de alertas y nivel → color
+│   └── alertasMock.js        # Datos simulados con el mismo contrato
+├── utils/
+│   └── formato.js            # Fechas y milímetros para mostrar
 ├── App.jsx                   # Definición de rutas
 └── main.jsx
 ```
 
 | Módulo | Responsabilidad |
 |---|---|
-| `authService` | Login y manejo del token (guardar, leer, borrar) |
-| `alertasService` | Consultar alertas y pedir la actualización, enviando `Authorization: Bearer <token>` |
-| `RutaProtegida` | Impedir el acceso a `/alertas` sin token |
-| `ZonaCard` | Mostrar una zona; es el único lugar donde se traduce el nivel a un color |
+| `apiClient` | Enviar cada petición con `Authorization: Bearer <token>`, cerrar la sesión ante un `401` y convertir los errores en mensajes legibles |
+| `authApi` | Login y registro contra la API de autenticación |
+| `alertasApi` | Consultar alertas y pedir la sincronización; es el único lugar donde se traduce el nivel a un color |
+| `AuthContext` / `useAuth` | Guardar, leer y borrar el token, y exponer el usuario a las pantallas |
+| `RutaProtegida` | Impedir el acceso a las pantallas con sesión sin token |
 
-Las páginas no llaman directamente a `fetch`: lo hacen a través de los servicios. Así, si cambia una ruta de un servicio, solo se modifica un archivo.
+Las páginas no llaman directamente a `fetch`: lo hacen a través de `src/api/`. Así, si cambia una ruta de un servicio, solo se modifica un archivo.
 
 ### 3.4 Rutas que usa el frontend
 
@@ -124,9 +144,10 @@ Gracias al proxy descrito en el documento de infraestructura, el navegador solo 
 
 | Acción | Ruta que llama el navegador | Servicio de destino |
 |---|---|---|
-| Login | `POST /auth/api/auth/login` | API de autenticación |
+| Login | `POST /auth-api/api/auth/login` | API de autenticación |
+| Registro | `POST /auth-api/api/auth/register` | API de autenticación |
 | Consultar alertas | `GET /alertas-api/api/alertas` | Microservicio de alertas |
-| Actualizar datos | `POST /alertas-api/api/lecturas/sincronizar` | Microservicio de alertas |
+| Sincronizar lecturas | `POST /alertas-api/api/lecturas/sincronizar` | Microservicio de alertas |
 
 ---
 
@@ -156,25 +177,33 @@ flowchart TB
 
 ### 4.2 Organización del código
 
-Paquete base: **[completar]** (por ejemplo, `co.edu.unillanos.sisalert.alertas`).
+Paquete base: `co.edu.unillanos.sisalert.alertas`.
 
 ```
-alertas-service/src/main/java/<paquete base>/
+alertas-service/src/main/java/co/edu/unillanos/sisalert/alertas/
 ├── controller/     ZonaController, AlertaController, LecturaController
 ├── service/        ZonaService, AlertaService, SincronizacionService
 ├── repository/     ZonaRepository, LecturaRepository, AlertaRepository
 ├── model/          Zona, Lectura, Alerta, NivelAlerta (enum)
-├── client/         ClienteDatosExternos (interfaz) y su implementación
+├── client/         ClienteDatosExternos (interfaz), ClienteIdeam, ClienteSimulado
 ├── rules/          ReglaDeUmbral
-├── dto/            Objetos que se devuelven por la API
-└── config/         Carga inicial de zonas y lectura de umbrales
+├── dto/            AlertaDto, ZonaDto
+└── config/         CargaInicial (zonas reales) y CorsConfig
 ```
 
 Que el cliente de datos externos sea una **interfaz** permite cambiar de fuente (IDEAM u otra) sin tocar el resto del servicio, y simular la fuente en las pruebas.
 
 ### 4.3 Datos iniciales
 
-Al arrancar, el servicio carga entre 3 y 4 zonas de ejemplo en H2. Las zonas y estaciones concretas se definen en el Paso 4 **[completar]**. El detalle de los campos está en `docs/modelo-datos.md`.
+Al arrancar, el servicio carga las tres zonas reales de riesgo en H2 a través de `CargaInicial`:
+
+| Zona | Estación IDEAM | Código | Cuerpos de agua | Comunidades (POMCA) |
+|---|---|---|---|---|
+| Zona Guatiquía Norte | ICA Villavicencio | `0035035100` | Río Guatiquía, Caño Parrado, Caño Gramalote, Qda Grande, Qda Honda, Caño Buque | Barzal Alto, Barzal Bajo, Siete de Agosto, Villa Lorena, Mancera, La Nohora, El Triunfo |
+| Zona Guayuriba Sur | Guayuriba | `3502700090` | Río Guayuriba, Caño Rosablanca, Caño La Cuerera | Apiay, Catumare, Playa Rica, La Esperanza, La Nohora Rural, Vanguardia |
+| Zona Caño Grande Centro | La Libertad | `0035025110` | Caño Grande, Caño Maizaro, Quebrada La Unión | Porvenir, Bello Horizonte, Villacentro, La Rosita, Marsella, Porfía |
+
+El detalle de los campos está en `docs/modelo-datos.md`.
 
 ---
 
@@ -257,11 +286,11 @@ La regla decide el nivel de alerta de una zona a partir de la **lluvia acumulada
 Los umbrales se configuran en `application.properties`, no en el código:
 
 ```properties
-alertas.umbral.precaucion-mm=[completar]
-alertas.umbral.peligro-mm=[completar]
+alertas.umbral.precaucion-mm=40
+alertas.umbral.peligro-mm=80
 ```
 
-Los valores los define el equipo en el Paso 4, con criterio meteorológico y a partir de los datos de la fuente elegida, y se explican en la presentación.
+Los valores se definen con criterio meteorológico a partir de los datos históricos del IDEAM para la Orinoquía (lluvia fuerte > 50 mm/día adaptada a 40 mm para alerta temprana; peligro en 80 mm por crecientes históricas del río Guatiquía).
 
 Mensaje asociado a cada nivel:
 
@@ -292,7 +321,7 @@ sequenceDiagram
     A-->>F: Token JWT
     F->>S: GET /api/alertas (Bearer token)
     S-->>F: Alertas vigentes por zona
-    C->>F: Clic en "Actualizar datos"
+    C->>F: Clic en "Sincronizar lecturas"
     F->>S: POST /api/lecturas/sincronizar
     S->>E: Consulta de precipitación
     E-->>S: Datos de estaciones

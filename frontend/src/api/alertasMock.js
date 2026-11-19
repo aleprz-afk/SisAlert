@@ -3,8 +3,8 @@
 // Replica las zonas de CargaInicial.java, el ClienteSimulado (lluvia aleatoria 0–90 mm)
 // y la ReglaDeUmbral con los umbrales de application.properties (30 y 60 mm).
 
-const UMBRAL_PRECAUCION_MM = 30
-const UMBRAL_PELIGRO_MM = 60
+const UMBRAL_PRECAUCION_MM = 40
+const UMBRAL_PELIGRO_MM = 80
 
 const MENSAJES = {
   NORMAL: 'Sin riesgo por lluvias en este momento.',
@@ -13,10 +13,24 @@ const MENSAJES = {
 }
 
 const ZONAS = [
-  { id: 1, nombre: 'Zona Guatiquía', cuerpoAgua: 'Río Guatiquía', comunidades: 'Por confirmar' },
-  { id: 2, nombre: 'Zona Caño Parrado', cuerpoAgua: 'Caño Parrado', comunidades: 'Por confirmar' },
-  { id: 3, nombre: 'Zona Caño Maizaro', cuerpoAgua: 'Caño Maizaro', comunidades: 'Por confirmar' },
-  { id: 4, nombre: 'Zona Río Ocoa', cuerpoAgua: 'Río Ocoa', comunidades: 'Por confirmar' },
+  {
+    id: 1,
+    nombre: 'Zona Guatiquía Norte',
+    cuerpoAgua: 'Río Guatiquía · Caño Parrado · Caño Gramalote · Quebrada Grande · Quebrada Honda · Caño Buque',
+    comunidades: 'Barzal Alto, Barzal Bajo, Siete de Agosto, Villa Lorena, Mancera, La Nohora, El Triunfo',
+  },
+  {
+    id: 2,
+    nombre: 'Zona Guayuriba Sur',
+    cuerpoAgua: 'Río Guayuriba · Caño Rosablanca · Caño La Cuerera',
+    comunidades: 'Apiay, Catumare, Playa Rica, La Esperanza, La Nohora Rural, Vanguardia',
+  },
+  {
+    id: 3,
+    nombre: 'Zona Caño Grande Centro',
+    cuerpoAgua: 'Caño Grande · Caño Maizaro · Quebrada La Unión',
+    comunidades: 'Porvenir, Bello Horizonte, Villacentro, La Rosita, Marsella, Porfía',
+  },
 ]
 
 // zonaId → { nivel, mensaje, precipitacionMm, fechaHora }
@@ -33,12 +47,6 @@ function ahoraLocal() {
   const d = new Date()
   const p = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
-}
-
-const copia = (valor) => JSON.parse(JSON.stringify(valor))
-
-export function listarZonas() {
-  return Promise.resolve(copia(ZONAS))
 }
 
 export function listarAlertas() {

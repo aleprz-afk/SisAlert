@@ -8,7 +8,7 @@
 
 ## 1. Objetivo
 
-Describir qué piezas de software componen el MVP, dónde se ejecuta cada una, en qué puerto, cómo se comunican y qué se necesita instalar para correrlas. Los valores marcados como **[completar]** se llenan cuando el equipo los verifique.
+Describir qué piezas de software componen el MVP, dónde se ejecuta cada una, en qué puerto, cómo se comunican y qué se necesita instalar para correrlas.
 
 ---
 
@@ -22,7 +22,7 @@ flowchart LR
 
     subgraph Local["Computador del equipo (localhost)"]
         F["Frontend<br/>React + Vite<br/>:5173"]
-        A["API de autenticación<br/>ASP.NET Core .NET 10<br/>:[completar]"]
+        A["API de autenticación<br/>ASP.NET Core .NET 10<br/>:5132"]
         S["Microservicio de alertas<br/>Spring Boot<br/>:8081"]
         H[("H2<br/>en memoria")]
         F -->|"proxy /auth<br/>REST + JSON"| A
@@ -42,10 +42,10 @@ Cada servicio tiene una sola responsabilidad y se puede arrancar, detener y reem
 | Componente | Tecnología | Responsabilidad | Puerto | Origen del código |
 |---|---|---|---|---|
 | Frontend | React + Vite | Pantalla de login y pantalla de alertas. No contiene lógica de negocio | 5173 | Carpeta `frontend/` de SisAlert |
-| API de autenticación | ASP.NET Core (.NET 10) | Registrar usuarios, validar credenciales y emitir el token JWT | [completar: lo muestra la consola al ejecutar] | Repositorio `mini-identity-api-dotnet` (ya construida, se ejecuta sin modificar) |
+| API de autenticación | ASP.NET Core (.NET 10) | Registrar usuarios, validar credenciales y emitir el token JWT | 5132 | Repositorio `mini-identity-api-dotnet` (ya construida, se ejecuta sin modificar) |
 | Microservicio de alertas | Java + Spring Boot | Zonas de riesgo, lecturas de lluvia y alertas | 8081 | Carpeta `alertas-service/` de SisAlert |
 | Base de datos | H2 en memoria | Persistencia temporal de zonas, lecturas y alertas | (interna al microservicio) | Se embebe en `alertas-service` |
-| Fuente externa | API o datos abiertos meteorológicos | Entregar datos de precipitación por estación | HTTPS | [completar en el Paso 4] |
+| Fuente externa | API o datos abiertos meteorológicos | Entregar datos de precipitación por estación | HTTPS | datos.gov.co — conjunto s54a-sgyg (precipitación IDEAM, sensor 0240, mm) |
 
 El puerto 8081 se usa para el microservicio porque Spring Boot arranca por defecto en el 8080, y así se evitan choques con otras aplicaciones del computador.
 
@@ -58,7 +58,7 @@ El puerto 8081 se usa para el microservicio porque Spring Boot arranca por defec
 | Navegador | Frontend | HTTP | Página web | Al abrir la aplicación |
 | Frontend | API de autenticación | HTTP/REST, JSON | Usuario y contraseña; recibe el token JWT | Al iniciar sesión |
 | Frontend | Microservicio de alertas | HTTP/REST, JSON | Consulta de alertas; petición de actualización. Lleva `Authorization: Bearer <token>` | Después del login |
-| Microservicio de alertas | Fuente externa | HTTPS, JSON | Consulta de precipitación | Al pulsar "Actualizar datos" |
+| Microservicio de alertas | Fuente externa | HTTPS, JSON | Consulta de precipitación | Al pulsar "Sincronizar lecturas" |
 | Microservicio de alertas | H2 | Interno (JPA) | Lectura y escritura de datos | En cada operación |
 
 ### 4.1 Proxy del frontend (solución a CORS)
@@ -67,14 +67,14 @@ El navegador bloquea las llamadas entre orígenes distintos (por ejemplo, desde 
 
 | Ruta que llama el navegador | Se reenvía a |
 |---|---|
-| `/auth/...` | `http://localhost:[puerto de la API de autenticación]/...` |
+| `/auth-api/...` | `http://localhost:5132/...` |
 | `/alertas-api/...` | `http://localhost:8081/...` |
 
 Ejemplos de cómo se traducen las rutas:
 
 | El navegador llama a | El servicio recibe |
 |---|---|
-| `/auth/api/auth/login` | `POST /api/auth/login` en la API de autenticación |
+| `/auth-api/api/auth/login` | `POST /api/auth/login` en la API de autenticación |
 | `/alertas-api/api/alertas` | `GET /api/alertas` en el microservicio de alertas |
 
 Ejemplo de configuración en `frontend/vite.config.js`:
@@ -83,10 +83,11 @@ Ejemplo de configuración en `frontend/vite.config.js`:
 export default {
   server: {
     proxy: {
-      '/auth': {
-        target: 'http://localhost:[PUERTO_AUTH]',
+      '/auth-api': {
+        target: 'http://localhost:5132',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/auth/, '')
+        secure: false,
+        rewrite: (path) => path.replace(/^\/auth-api/, '')
       },
       '/alertas-api': {
         target: 'http://localhost:8081',
@@ -97,7 +98,7 @@ export default {
   }
 }
 ```
-> Si la API de autenticación solo escucha en HTTPS con certificado de desarrollo, añadir `secure: false` en su bloque. **[verificar al ejecutarla]**
+> Si la API de autenticación solo escucha en HTTPS con certificado de desarrollo, añadir `secure: false` en su bloque.
 
 ---
 

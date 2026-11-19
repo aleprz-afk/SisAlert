@@ -8,7 +8,7 @@
 
 ## 1. Objetivo
 
-Definir qué información guarda el microservicio de alertas, cómo se relacionan sus tablas y qué reglas cumplen los datos. Los valores marcados como **[completar]** se cierran en el Paso 4.
+Definir qué información guarda el microservicio de alertas, cómo se relacionan sus tablas y qué reglas cumplen los datos.
 
 **Alcance:** este modelo pertenece únicamente al microservicio de alertas (base H2 en memoria). Los usuarios y contraseñas los administra la API de autenticación con su propio almacenamiento; el microservicio de alertas no los guarda ni los lee.
 
@@ -116,15 +116,15 @@ Restricciones de la base de datos:
 
 ## 6. Datos iniciales
 
-Al arrancar, el servicio carga entre 3 y 4 zonas de ejemplo. Las lecturas y alertas comienzan vacías.
+Al arrancar, el servicio carga las tres zonas reales de Villavicencio en H2. Las lecturas y alertas comienzan vacías.
 
 | Nombre de la zona | Cuerpo de agua | Comunidades | Código de estación |
 |---|---|---|---|
-| [completar] | [completar] | [completar] | [completar] |
-| [completar] | [completar] | [completar] | [completar] |
-| [completar] | [completar] | [completar] | [completar] |
+| Zona Guatiquía Norte | Río Guatiquía · Caño Parrado · Caño Gramalote · Quebrada Grande · Quebrada Honda · Caño Buque | Barzal Alto, Barzal Bajo, Siete de Agosto, Villa Lorena, Mancera, La Nohora, El Triunfo | `0035035100` |
+| Zona Guayuriba Sur | Río Guayuriba · Caño Rosablanca · Caño La Cuerera | Apiay, Catumare, Playa Rica, La Esperanza, La Nohora Rural, Vanguardia | `3502700090` |
+| Zona Caño Grande Centro | Caño Grande · Caño Maizaro · Quebrada La Unión | Porvenir, Bello Horizonte, Villacentro, La Rosita, Marsella, Porfía | `0035025110` |
 
-Las zonas reales de Villavicencio y las estaciones de referencia se definen en el Paso 4, cuando se elija la fuente de datos.
+Las zonas y comunidades corresponden a los sectores con mayor amenaza de inundación según el POMCA del río Guatiquía (CORMACARENA, 2018) y las estaciones telemétricas del IDEAM en el portal de datos abiertos (conjunto `s54a-sgyg`).
 
 ---
 

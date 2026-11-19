@@ -5,7 +5,7 @@ Aplicación React + Vite. Consume la API de autenticación del docente y el micr
 ## Requisitos
 - Node.js 20 o superior
 - API de autenticación del docente corriendo (mini-identity-api-dotnet) en `http://localhost:5132`
-- `alertas-service` corriendo en `http://localhost:8080`
+- `alertas-service` corriendo en `http://localhost:8081`
 
 ## Ejecutar en local
 ```bash
@@ -18,7 +18,7 @@ Abrir http://localhost:5173
 | Prefijo en el frontend | Destino |
 | --- | --- |
 | `/auth-api/*` | API de autenticación (.NET) — `http://localhost:5132` |
-| `/alertas-api/*` | alertas-service (Spring Boot) — `http://localhost:8080` |
+| `/alertas-api/*` | alertas-service (Spring Boot) — `http://localhost:8081` |
 
 ## Autenticación
 1. `LoginPage` envía las credenciales a `POST /api/auth/login`.
@@ -43,12 +43,11 @@ llamadas siguen el contrato y pasan por `apiFetch`, así que el token viaja solo
 
 | Función | Endpoint |
 | --- | --- |
-| `getEstadoZona(zonaId)` | `GET /alertas-api/api/zonas/{zonaId}/estado` — se consulta cada 5 s |
-| `getAlertas(zonaId)` | `GET /alertas-api/api/alertas?zonaId=...` — se consulta cada 5 s |
-| `reconocerAlerta(alertaId)` | `POST /alertas-api/api/alertas/{alertaId}/reconocer` — sin cuerpo |
+| `getAlertas()` | `GET /alertas-api/api/alertas` — alerta vigente por zona, cada 5 s |
+| `sincronizar()` | `POST /alertas-api/api/lecturas/sincronizar` — consulta fuente, guarda lecturas y recalcula |
 
-- `EstacionesPage` (menú **Tablero**) pinta semáforo, nivel, tendencia y umbrales.
-- `AlertasPage` lista las alertas de más reciente a más antigua y registra el reconocimiento.
+- `EstacionesPage` (menú **Tablero**) pinta el semáforo por zona y el botón de sincronización.
+- `AlertasPage` lista únicamente las zonas en precaución o peligro, de la más grave a la menor.
 
 ### Modo demostración
 Mientras `alertas-service` no esté corriendo, las llamadas caen en `alertasMock.js`

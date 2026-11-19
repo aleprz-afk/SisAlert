@@ -44,7 +44,10 @@ function avisar(motivo) {
 function servicioCaido(e) {
   if (e.status === undefined) return true
   if (e.status === 502) return !String(e.cuerpo ?? '').includes('FUENTE_EXTERNA')
-  return [500, 503, 504].includes(e.status)
+  if (e.status === 500) {
+    return !e.cuerpo || !String(e.cuerpo).includes('"status":500')
+  }
+  return [503, 504].includes(e.status)
 }
 
 async function ejecutar(llamarServicio, llamadaDemo) {
@@ -75,22 +78,20 @@ export function normalizar(lista) {
   }))
 }
 
-export const getZonas = () =>
-  ejecutar(() => apiFetch(`${BASE}/zonas`), () => mock.listarZonas())
-
 export const getAlertas = async () =>
   normalizar(
     await ejecutar(() => apiFetch(`${BASE}/alertas`), () => mock.listarAlertas()),
   )
 
 // La operación de escritura del MVP: el servicio registra lecturas y recalcula alertas.
-export const sincronizar = async () =>
-  normalizar(
-    await ejecutar(
-      () => apiFetch(`${BASE}/lecturas/sincronizar`, { method: 'POST' }),
-      () => mock.sincronizar(),
-    ),
-  )
+// Si el backend falla, no se enmascara con mock a menos que ya esté en modo demostración.
+export const sincronizar = async () => {
+  if (usandoMock) {
+    return normalizar(await mock.sincronizar())
+  }
+  const datos = await apiFetch(`${BASE}/lecturas/sincronizar`, { method: 'POST' })
+  return normalizar(datos)
+}
 
 export const enModoDemostracion = () => usandoMock
 
