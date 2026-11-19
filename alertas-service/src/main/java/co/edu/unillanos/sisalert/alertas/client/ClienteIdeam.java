@@ -43,7 +43,7 @@ public class ClienteIdeam implements ClienteDatosExternos {
     private static final String BASE_URL =
             "https://www.datos.gov.co/resource/s54a-sgyg.json";
     private static final String CODIGO_SENSOR = "0240";   // precipitación
-    private static final int TIMEOUT_SEGUNDOS = 10;
+    private static final int TIMEOUT_SEGUNDOS = 25;
     private static final int DIAS_ATRAS_MAX = 90;         // ventana de búsqueda hacia atrás
 
     private final HttpClient http;
@@ -90,9 +90,13 @@ public class ClienteIdeam implements ClienteDatosExternos {
     private LocalDate fechaMasReciente(String codigoEstacion)
             throws FuenteExternaException {
 
+        String altCodigo = codigoEstacion.startsWith("00")
+                ? codigoEstacion.substring(2)
+                : "00" + codigoEstacion;
+
         String soql = "$select=max(fechaobservacion)"
-                + "&$where=" + encode("codigoestacion='" + codigoEstacion
-                + "' AND codigosensor='" + CODIGO_SENSOR + "'");
+                + "&$where=" + encode("(codigoestacion='" + codigoEstacion
+                + "' OR codigoestacion='" + altCodigo + "') AND codigosensor='" + CODIGO_SENSOR + "'");
         String url = BASE_URL + "?" + soql;
 
         String cuerpo = get(url);
@@ -128,8 +132,12 @@ public class ClienteIdeam implements ClienteDatosExternos {
         String inicio = fecha + "T00:00:00.000";
         String fin    = fecha + "T23:59:59.999";
 
+        String altCodigo = codigoEstacion.startsWith("00")
+                ? codigoEstacion.substring(2)
+                : "00" + codigoEstacion;
+
         String soql = "$where=" + encode(
-                "codigoestacion='" + codigoEstacion + "'"
+                "(codigoestacion='" + codigoEstacion + "' OR codigoestacion='" + altCodigo + "')"
                 + " AND codigosensor='" + CODIGO_SENSOR + "'"
                 + " AND fechaobservacion >= '" + inicio + "'"
                 + " AND fechaobservacion <= '" + fin + "'")
@@ -182,6 +190,8 @@ public class ClienteIdeam implements ClienteDatosExternos {
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .timeout(Duration.ofSeconds(TIMEOUT_SEGUNDOS))
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SisAlert-IdeamClient/1.0")
+                    .header("Accept", "application/json")
                     .GET();
             if (!appToken.isBlank()) {
                 builder.header("X-App-Token", appToken);

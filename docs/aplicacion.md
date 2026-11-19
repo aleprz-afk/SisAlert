@@ -8,7 +8,7 @@
 
 ## 1. Objetivo
 
-Describir qué hace el sistema desde el punto de vista del usuario y cómo está organizado por dentro: pantallas del frontend, capas del microservicio de alertas, endpoints y reglas de negocio. Los valores marcados como **[completar]** se cierran durante la implementación.
+Describir qué hace el sistema desde el punto de vista del usuario y cómo está organizado por dentro: pantallas del frontend, capas del microservicio de alertas, endpoints y reglas de negocio.
 
 ---
 
@@ -156,25 +156,33 @@ flowchart TB
 
 ### 4.2 Organización del código
 
-Paquete base: **[completar]** (por ejemplo, `co.edu.unillanos.sisalert.alertas`).
+Paquete base: `co.edu.unillanos.sisalert.alertas`.
 
 ```
-alertas-service/src/main/java/<paquete base>/
+alertas-service/src/main/java/co/edu/unillanos/sisalert/alertas/
 ├── controller/     ZonaController, AlertaController, LecturaController
 ├── service/        ZonaService, AlertaService, SincronizacionService
 ├── repository/     ZonaRepository, LecturaRepository, AlertaRepository
 ├── model/          Zona, Lectura, Alerta, NivelAlerta (enum)
-├── client/         ClienteDatosExternos (interfaz) y su implementación
+├── client/         ClienteDatosExternos (interfaz), ClienteIdeam, ClienteSimulado
 ├── rules/          ReglaDeUmbral
-├── dto/            Objetos que se devuelven por la API
-└── config/         Carga inicial de zonas y lectura de umbrales
+├── dto/            AlertaDto, ZonaDto
+└── config/         CargaInicial (zonas reales) y CorsConfig
 ```
 
 Que el cliente de datos externos sea una **interfaz** permite cambiar de fuente (IDEAM u otra) sin tocar el resto del servicio, y simular la fuente en las pruebas.
 
 ### 4.3 Datos iniciales
 
-Al arrancar, el servicio carga entre 3 y 4 zonas de ejemplo en H2. Las zonas y estaciones concretas se definen en el Paso 4 **[completar]**. El detalle de los campos está en `docs/modelo-datos.md`.
+Al arrancar, el servicio carga las tres zonas reales de riesgo en H2 a través de `CargaInicial`:
+
+| Zona | Estación IDEAM | Código | Cuerpos de agua | Comunidades (POMCA) |
+|---|---|---|---|---|
+| Zona Guatiquía Norte | ICA Villavicencio | `0035035100` | Río Guatiquía, Caño Parrado, Caño Gramalote, Qda Grande, Qda Honda, Caño Buque | Barzal Alto, Barzal Bajo, Siete de Agosto, Villa Lorena, Mancera, La Nohora, El Triunfo |
+| Zona Guayuriba Sur | Guayuriba | `3502700090` | Río Guayuriba, Caño Rosablanca, Caño La Cuerera | Apiay, Catumare, Playa Rica, La Esperanza, La Nohora Rural, Vanguardia |
+| Zona Caño Grande Centro | La Libertad | `0035025110` | Caño Grande, Caño Maizaro, Quebrada La Unión | Porvenir, Bello Horizonte, Villacentro, La Rosita, Marsella, Porfía |
+
+El detalle de los campos está en `docs/modelo-datos.md`.
 
 ---
 
@@ -257,11 +265,11 @@ La regla decide el nivel de alerta de una zona a partir de la **lluvia acumulada
 Los umbrales se configuran en `application.properties`, no en el código:
 
 ```properties
-alertas.umbral.precaucion-mm=[completar]
-alertas.umbral.peligro-mm=[completar]
+alertas.umbral.precaucion-mm=40
+alertas.umbral.peligro-mm=80
 ```
 
-Los valores los define el equipo en el Paso 4, con criterio meteorológico y a partir de los datos de la fuente elegida, y se explican en la presentación.
+Los valores se definen con criterio meteorológico a partir de los datos históricos del IDEAM para la Orinoquía (lluvia fuerte > 50 mm/día adaptada a 40 mm para alerta temprana; peligro en 80 mm por crecientes históricas del río Guatiquía).
 
 Mensaje asociado a cada nivel:
 

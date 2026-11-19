@@ -14,7 +14,7 @@ export default defineConfig({
       },
       // Microservicio de alertas (Spring Boot)
       '/alertas-api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8081',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/alertas-api/, ''),
       },

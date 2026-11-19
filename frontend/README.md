@@ -43,12 +43,11 @@ llamadas siguen el contrato y pasan por `apiFetch`, así que el token viaja solo
 
 | Función | Endpoint |
 | --- | --- |
-| `getEstadoZona(zonaId)` | `GET /alertas-api/api/zonas/{zonaId}/estado` — se consulta cada 5 s |
-| `getAlertas(zonaId)` | `GET /alertas-api/api/alertas?zonaId=...` — se consulta cada 5 s |
-| `reconocerAlerta(alertaId)` | `POST /alertas-api/api/alertas/{alertaId}/reconocer` — sin cuerpo |
+| `getAlertas()` | `GET /alertas-api/api/alertas` — alerta vigente por zona, cada 5 s |
+| `sincronizar()` | `POST /alertas-api/api/lecturas/sincronizar` — consulta fuente, guarda lecturas y recalcula |
 
-- `EstacionesPage` (menú **Tablero**) pinta semáforo, nivel, tendencia y umbrales.
-- `AlertasPage` lista las alertas de más reciente a más antigua y registra el reconocimiento.
+- `EstacionesPage` (menú **Tablero**) pinta el semáforo por zona y el botón de sincronización.
+- `AlertasPage` lista únicamente las zonas en precaución o peligro, de la más grave a la menor.
 
 ### Modo demostración
 Mientras `alertas-service` no esté corriendo, las llamadas caen en `alertasMock.js`
