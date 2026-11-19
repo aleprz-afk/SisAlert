@@ -5,7 +5,7 @@ Aplicación React + Vite. Consume la API de autenticación del docente y el micr
 ## Requisitos
 - Node.js 20 o superior
 - API de autenticación del docente corriendo (mini-identity-api-dotnet) en `http://localhost:5132`
-- `alertas-service` corriendo en `http://localhost:8080`
+- `alertas-service` corriendo en `http://localhost:8081`
 
 ## Ejecutar en local
 ```bash
@@ -18,7 +18,7 @@ Abrir http://localhost:5173
 | Prefijo en el frontend | Destino |
 | --- | --- |
 | `/auth-api/*` | API de autenticación (.NET) — `http://localhost:5132` |
-| `/alertas-api/*` | alertas-service (Spring Boot) — `http://localhost:8080` |
+| `/alertas-api/*` | alertas-service (Spring Boot) — `http://localhost:8081` |
 
 ## Autenticación
 1. `LoginPage` envía las credenciales a `POST /api/auth/login`.

@@ -58,7 +58,7 @@ El puerto 8081 se usa para el microservicio porque Spring Boot arranca por defec
 | Navegador | Frontend | HTTP | Página web | Al abrir la aplicación |
 | Frontend | API de autenticación | HTTP/REST, JSON | Usuario y contraseña; recibe el token JWT | Al iniciar sesión |
 | Frontend | Microservicio de alertas | HTTP/REST, JSON | Consulta de alertas; petición de actualización. Lleva `Authorization: Bearer <token>` | Después del login |
-| Microservicio de alertas | Fuente externa | HTTPS, JSON | Consulta de precipitación | Al pulsar "Actualizar datos" |
+| Microservicio de alertas | Fuente externa | HTTPS, JSON | Consulta de precipitación | Al pulsar "Sincronizar lecturas" |
 | Microservicio de alertas | H2 | Interno (JPA) | Lectura y escritura de datos | En cada operación |
 
 ### 4.1 Proxy del frontend (solución a CORS)
@@ -67,14 +67,14 @@ El navegador bloquea las llamadas entre orígenes distintos (por ejemplo, desde 
 
 | Ruta que llama el navegador | Se reenvía a |
 |---|---|
-| `/auth/...` | `http://localhost:[puerto de la API de autenticación]/...` |
+| `/auth-api/...` | `http://localhost:5132/...` |
 | `/alertas-api/...` | `http://localhost:8081/...` |
 
 Ejemplos de cómo se traducen las rutas:
 
 | El navegador llama a | El servicio recibe |
 |---|---|
-| `/auth/api/auth/login` | `POST /api/auth/login` en la API de autenticación |
+| `/auth-api/api/auth/login` | `POST /api/auth/login` en la API de autenticación |
 | `/alertas-api/api/alertas` | `GET /api/alertas` en el microservicio de alertas |
 
 Ejemplo de configuración en `frontend/vite.config.js`:

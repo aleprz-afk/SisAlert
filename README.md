@@ -92,7 +92,15 @@ Queda escuchando en `http://localhost:8081`. Al arrancar carga las zonas de ries
 
 Las pruebas unitarias se corren con `./mvnw test` (en Windows, `mvnw.cmd test`). La consola de H2 está en `http://localhost:8081/h2-console` con JDBC URL `jdbc:h2:mem:alertasdb`, usuario `sa` y sin contraseña.
 
-La fuente de datos se elige en `application.properties` con `alertas.fuente` (`simulada` genera lluvia aleatoria entre 0 y 90 mm). Los umbrales de alerta están en el mismo archivo (`alertas.umbral.precaucion-mm` y `alertas.umbral.peligro-mm`) y se cambian sin recompilar.
+La fuente de datos se elige en `application.properties` con `alertas.fuente`:
+
+| Valor | Fuente |
+|---|---|
+| `open-meteo` (por defecto) | Lluvia real en vivo para Villavicencio desde Open-Meteo; necesita internet |
+| `ideam` | Datos abiertos del IDEAM en datos.gov.co; el token opcional va en la variable de entorno `ALERTAS_IDEAM_APP_TOKEN` |
+| `simulada` | Lluvia aleatoria entre 0 y 90 mm; respaldo para demostrar sin internet |
+
+Los umbrales de alerta están en el mismo archivo (`alertas.umbral.precaucion-mm` y `alertas.umbral.peligro-mm`) y se cambian sin recompilar.
 
 El microservicio lee el usuario del token solo para registrar en el log quién sincronizó; **no valida la firma** del token en esta etapa (ver `docs/infraestructura.md` §7).
  
