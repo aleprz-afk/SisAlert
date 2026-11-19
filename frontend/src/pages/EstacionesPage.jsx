@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from 'react'
 import ChipModoDemo from '../components/ChipModoDemo'
+import MapaVillavicencio from '../components/MapaVillavicencio'
 import { getAlertas, sincronizar } from '../api/alertasApi'
 import { fechaLocal, milimetros } from '../utils/formato'
 
@@ -106,6 +107,8 @@ export default function EstacionesPage() {
           Todavía no hay lecturas. Pulsa «Sincronizar lecturas» para consultar la fuente de datos.
         </p>
       )}
+
+      {zonas.length > 0 && <MapaVillavicencio zonas={zonas} />}
 
       {zonas.length > 0 && (
         <div className="zonas-grid">
