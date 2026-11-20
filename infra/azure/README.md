@@ -74,7 +74,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 | Opción | Para qué |
 |---|---|
-| `-Region eastus` | Otra región, si Azure responde que la región no está permitida para la suscripción o que PostgreSQL no está disponible ahí. Por defecto es `eastus2`; también suelen funcionar `eastus`, `centralus` y `westus2` |
+| `-Region eastus` | Otra región. Las suscripciones de estudiante **solo permiten algunas**; para ver cuáles: `az policy assignment list --query "[].parameters.listOfAllowedLocations.value" -o tsv`. Por defecto es `eastus2` |
 | `-GeminiApiKey "AIza..."` | Activa los boletines con Gemini. Sin ella se usa la plantilla |
 | `-ReplicasMinimas 1` | Frontend, identidad e IA siempre encendidos. Para el día de la sustentación |
 
@@ -97,7 +97,7 @@ Con todo encendido el costo estimado es de **USD 20 a 35 al mes**. Pausado, solo
 
 | Mensaje | Qué hacer |
 |---|---|
-| `RequestDisallowedByPolicy` o `LocationNotAvailableForResourceType` | La región no está permitida: volver a ejecutar con `-Region eastus` (u otra) |
+| `RequestDisallowedByAzure`, `RequestDisallowedByPolicy` o `LocationNotAvailableForResourceType` | La región no está permitida para la suscripción. El script muestra la lista de regiones permitidas; volver a ejecutar con una de ellas: `-Region <region>`. No hace falta borrar nada |
 | `MissingSubscriptionRegistration` | Falta habilitar un servicio: repetir el paso 2 y esperar unos minutos |
 | `Docker no está corriendo` | Abrir Docker Desktop y esperar a que diga *Engine running* |
 | `No se pudo leer el secreto ...` | La cuenta que ejecuta no es la que desplegó la primera vez. Debe ejecutarlo el dueño de la suscripción |
