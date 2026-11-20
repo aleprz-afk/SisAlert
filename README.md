@@ -171,6 +171,7 @@ Recorrido de la demostración:
 3. **Alertas** (`/alertas`): solo las zonas en precaución o peligro, la más grave primero.
 4. **Zonas** (`/zonas`): crear, editar y eliminar zonas de riesgo. Al eliminar una zona se borran en cascada sus lecturas y alertas.
 5. **Pronóstico IA**: cada tarjeta muestra la probabilidad de lluvia fuerte (40 mm o más) en las próximas 24 horas, el riesgo (bajo, medio o alto) y las tres variables que más pesaron.
+6. **Modo simulación (solo admin)**: en la barra superior, el selector **Datos** cambia en vivo entre *Reales (Open-Meteo + IA)* y las simulaciones *época seca*, *tormenta* y *creciente*. Sirve para mostrar en la sustentación el estado actual y cómo reacciona el sistema con lluvia, sin reiniciar nada. La simulación se calcula al vuelo en `GET /api/simulacion/{escenario}` (semáforo e IA con la serie del escenario): **no se guarda nada** y los demás usuarios siguen viendo los datos reales.
 
 ## Configuración y variables de entorno
 
@@ -257,6 +258,8 @@ Todas exigen `Authorization: Bearer <token>`. Sin token, o con uno inválido o v
 | GET | `/api/alertas` | Con sesión | Una entrada por zona con su alerta vigente (`nivel` en `null` si aún no hay lecturas) y su última predicción de IA (`riesgoIa`, `null` si no hay) |
 | GET | `/api/lecturas/zonas/{id}/historico` | Con sesión | Últimas 20 lecturas de una zona |
 | POST | `/api/lecturas/sincronizar` | Admin | Consulta la fuente externa, guarda las lecturas y recalcula las alertas; devuelve lo mismo que `GET /api/alertas` |
+| GET | `/api/simulacion` | Admin | Escenarios disponibles (`seca`, `tormenta`, `creciente`) |
+| GET | `/api/simulacion/{escenario}` | Admin | Lo mismo que `GET /api/alertas`, pero calculado para el escenario, con la predicción de IA en vivo. No guarda nada |
 
 Los niveles son `NORMAL`, `PRECAUCION` y `PELIGRO`. Si la fuente externa falla, `sincronizar` responde `502` con `{"error":"FUENTE_EXTERNA_NO_DISPONIBLE","mensaje":"..."}` y no cambia ninguna alerta. Los errores de validación responden `400`, los recursos inexistentes `404` y los duplicados `409`, siempre con `{"error":"CODIGO","mensaje":"texto"}`. El detalle de cada respuesta está en `docs/aplicacion.md` §5.
 

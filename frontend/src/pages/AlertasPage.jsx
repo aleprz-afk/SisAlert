@@ -4,12 +4,14 @@
 import { useEffect, useState } from 'react'
 import ChipModoDemo from '../components/ChipModoDemo'
 import { getAlertas } from '../api/alertasApi'
+import { useSimulacion } from '../context/useSimulacion'
 import RiesgoIa from '../components/RiesgoIa'
 import { fechaLocal, milimetros } from '../utils/formato'
 
 const INTERVALO_MS = 5000
 
 export default function AlertasPage() {
+  const { escenario } = useSimulacion()
   const [zonas, setZonas] = useState([])
   const [error, setError] = useState(null)
   const [cargando, setCargando] = useState(true)
@@ -22,7 +24,7 @@ export default function AlertasPage() {
 
     async function traer() {
       try {
-        const datos = await getAlertas()
+        const datos = await getAlertas(escenario)
         if (!cancelado) {
           setZonas(datos)
           setError(null)
@@ -40,7 +42,7 @@ export default function AlertasPage() {
       cancelado = true
       clearInterval(id)
     }
-  }, [intento])
+  }, [intento, escenario])
 
   const activas = zonas
     .filter((z) => z.nivel === 'PRECAUCION' || z.nivel === 'PELIGRO')

@@ -26,6 +26,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import co.edu.unillanos.sisalert.alertas.service.AlertaService;
+import co.edu.unillanos.sisalert.alertas.service.SimulacionService;
 import co.edu.unillanos.sisalert.alertas.service.SincronizacionService;
 import co.edu.unillanos.sisalert.alertas.service.ZonaService;
 
@@ -51,6 +52,8 @@ class SeguridadConfigTest {
     private AlertaService alertaService;
     @MockitoBean
     private SincronizacionService sincronizacionService;
+    @MockitoBean
+    private SimulacionService simulacionService;
 
     private static String token(String clave, String emisor, Instant vence, Object rol) throws Exception {
         JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
@@ -132,6 +135,15 @@ class SeguridadConfigTest {
         when(sincronizacionService.sincronizar()).thenReturn(List.of());
         mvc.perform(post("/api/lecturas/sincronizar")
                         .header("Authorization", tokenValido(List.of("Operador", "Admin"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void soloAdminPuedeVerSimulaciones() throws Exception {
+        when(simulacionService.simular("tormenta")).thenReturn(List.of());
+        mvc.perform(get("/api/simulacion/tormenta").header("Authorization", tokenValido(null)))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/simulacion/tormenta").header("Authorization", tokenValido("Admin")))
                 .andExpect(status().isOk());
     }
 }

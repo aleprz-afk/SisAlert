@@ -41,6 +41,7 @@ import jakarta.servlet.http.HttpServletResponse;
  *   GET  /api/zonas, /api/alertas, /api/lecturas/zonas/{id}/historico  -> cualquier usuario con sesión
  *   POST /api/lecturas/sincronizar                                     -> Admin
  *   POST, PUT, DELETE /api/zonas                                       -> Admin
+ *   GET  /api/simulacion/{escenario} (simulación sin guardar)          -> Admin
  */
 @Configuration
 @EnableWebSecurity
@@ -67,6 +68,7 @@ public class SeguridadConfig {
                         .requestMatchers(HttpMethod.POST, "/api/zonas").hasRole(ROL_ADMIN)
                         .requestMatchers(HttpMethod.PUT, "/api/zonas/**").hasRole(ROL_ADMIN)
                         .requestMatchers(HttpMethod.DELETE, "/api/zonas/**").hasRole(ROL_ADMIN)
+                        .requestMatchers("/api/simulacion", "/api/simulacion/**").hasRole(ROL_ADMIN)
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
                 .oauth2ResourceServer(rs -> rs

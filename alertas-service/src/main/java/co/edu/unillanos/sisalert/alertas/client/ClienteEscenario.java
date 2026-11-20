@@ -35,7 +35,8 @@ public class ClienteEscenario implements ClienteDatosExternos {
     static final String GUATIQUIA_NORTE = "0035035100";
     static final String GUAYURIBA_SUR = "3502700090";
 
-    private static final List<String> ESCENARIOS = List.of("seca", "tormenta", "creciente");
+    /** Escenarios disponibles (también los usa la simulación del administrador). */
+    public static final List<String> ESCENARIOS = List.of("seca", "tormenta", "creciente");
 
     private final String escenario;
     private final double mmNormal;
