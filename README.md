@@ -41,7 +41,7 @@ SisAlert/
 └── README.md
 ```
 
-Ambos servicios comparten la misma instancia de PostgreSQL (`sisalert`) pero cada uno es dueño de sus tablas: `zona`, `lectura`, `alerta` para alertas; `usuarios`, `roles`, `permisos` y sus tablas puente para identidad.
+Ambos servicios comparten la misma instancia de PostgreSQL (`sisalert`) pero cada uno tiene **su propio esquema**: `alertas` (`zona`, `lectura`, `alerta`, versionado con Flyway) e `identidad` (`usuarios`, `roles`, `permisos` y sus tablas puente, versionado con EF Core). Así se pueden arrancar en cualquier orden y en la nube cada uno puede tener un usuario con permisos solo sobre su esquema.
  
 ## Requisitos
  
@@ -128,6 +128,21 @@ La fuente de datos se elige en `application.properties` con `alertas.fuente`:
 | `open-meteo` (por defecto) | Lluvia real en vivo para Villavicencio desde Open-Meteo; necesita internet |
 | `ideam` | Datos abiertos del IDEAM en datos.gov.co; el token opcional va en la variable de entorno `ALERTAS_IDEAM_APP_TOKEN` |
 | `simulada` | Lluvia aleatoria entre 0 y 90 mm; respaldo para demostrar sin internet |
+| `escenario` | Resultados fijos para demostrar con lluvia en época seca; se elige con `alertas.escenario` |
+
+No hace falta editar el archivo: Spring también lee estas propiedades desde variables de entorno (`ALERTAS_FUENTE`, `ALERTAS_ESCENARIO`). Por ejemplo, para la demostración con lluvia:
+
+```powershell
+$env:ALERTAS_FUENTE = "escenario"; $env:ALERTAS_ESCENARIO = "tormenta"; .\mvnw.cmd spring-boot:run
+```
+
+| `ALERTAS_ESCENARIO` | Resultado al sincronizar |
+|---|---|
+| `seca` | Todas las zonas en NORMAL |
+| `tormenta` (por defecto) | Guatiquía Norte en PRECAUCIÓN, Guayuriba Sur en PELIGRO, Caño Grande Centro en NORMAL |
+| `creciente` | Todas las zonas en PELIGRO |
+
+Para volver a los datos reales basta con cerrar esa terminal y arrancar el servicio normal.
 
 Los umbrales de alerta están en el mismo archivo (`alertas.umbral.precaucion-mm` y `alertas.umbral.peligro-mm`) y se cambian sin recompilar.
 
@@ -215,6 +230,7 @@ Para la sustentación se usa `VITE_MOCK_ALERTAS=false`, así queda claro que los
 | "No se pudo conectar con el servidor" al iniciar sesión | La API de autenticación no está corriendo o está en otro puerto | Revisar la terminal 1 y que diga `http://localhost:5132` |
 | "Usuario o contraseña incorrectos" | Credenciales inválidas o usuario desactivado | Revisar el usuario en Swagger (`/api/users`) o usar `admin` |
 | "No se pudo conectar con la base de datos" | PostgreSQL no está corriendo | `docker start sisalert-db` o revisar `DB_URL` / `ConnectionStrings__Identity` |
+| Quedaron tablas `zona`, `lectura`, `alerta` y `flyway_schema_history` en el esquema `public` | Base creada antes de separar los esquemas; ya no se usan (las zonas se vuelven a sembrar en `alertas`) | Opcional: `docker exec sisalert-db psql -U sisalert -d sisalert -c "DROP TABLE public.alerta, public.lectura, public.zona, public.flyway_schema_history"` |
 | El microservicio no arranca con `Flyway` o `EF Core` | Migraciones pendientes o base mal apuntada | Revisar el log; ambos aplican migraciones solos al arrancar |
 | El tablero muestra el aviso de modo demostración | El microservicio de alertas no responde en 8081 | Revisar la terminal 2 y pulsar **Reintentar** |
 | Todas las zonas aparecen en "Sin datos" | Todavía no se ha sincronizado | Pulsar **Sincronizar lecturas** en el tablero |

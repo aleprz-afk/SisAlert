@@ -85,22 +85,36 @@ public class ClienteOpenMeteo implements ClienteDatosExternos {
                 throw new FuenteExternaException("Open-Meteo respondió HTTP " + resp.statusCode() + " para URL: " + url);
             }
 
-            JsonNode root = mapper.readTree(resp.body());
-            JsonNode dailyPrecip = root.path("daily").path("precipitation_sum");
-            if (!dailyPrecip.isArray() || dailyPrecip.isEmpty()) {
-                throw new FuenteExternaException("Respuesta sin datos diarios para estación " + codigoEstacion);
-            }
-
-            // Primer elemento del array es el día de hoy
-            double lluviaMm = dailyPrecip.get(0).asDouble(0.0);
+            double lluviaMm = leerPrecipitacionHoy(mapper.readTree(resp.body()), codigoEstacion);
             log.info("Estación {} (lat {}, lon {}) · Precipitación hoy: {} mm",
                     codigoEstacion, coord.lat(), coord.lon(), lluviaMm);
-            return Math.round(lluviaMm * 10.0) / 10.0;
+            return lluviaMm;
 
         } catch (FuenteExternaException e) {
             throw e;
         } catch (Exception e) {
             throw new FuenteExternaException("Error al consultar datos meteorológicos reales de " + codigoEstacion, e);
         }
+    }
+
+    /**
+     * Extrae la lluvia de hoy (primer elemento de daily.precipitation_sum).
+     * Un valor ausente o nulo es un dato faltante, no "0 mm": se reporta como falla de la
+     * fuente para no mostrar una zona en NORMAL sin tener datos que lo respalden.
+     */
+    static double leerPrecipitacionHoy(JsonNode root, String codigoEstacion) throws FuenteExternaException {
+        JsonNode dailyPrecip = root.path("daily").path("precipitation_sum");
+        if (!dailyPrecip.isArray() || dailyPrecip.isEmpty()) {
+            throw new FuenteExternaException("Respuesta sin datos diarios para estación " + codigoEstacion);
+        }
+        JsonNode hoy = dailyPrecip.get(0);
+        if (!hoy.isNumber()) {
+            throw new FuenteExternaException("Open-Meteo no reportó lluvia de hoy para estación " + codigoEstacion);
+        }
+        double lluviaMm = hoy.asDouble();
+        if (lluviaMm < 0) {
+            throw new FuenteExternaException("Valor de lluvia inválido (" + lluviaMm + ") para estación " + codigoEstacion);
+        }
+        return Math.round(lluviaMm * 10.0) / 10.0;
     }
 }

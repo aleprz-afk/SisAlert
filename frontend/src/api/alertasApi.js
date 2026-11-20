@@ -120,7 +120,7 @@ export const sincronizar = async () => {
   return normalizar(datos)
 }
 
-// Consulta las mediciones históricas recientes de una cuenca en MySQL
+// Consulta las mediciones históricas recientes de una cuenca (últimas 20 lecturas)
 export const getHistoricoZona = async (zonaId) => {
   if (usandoMock) {
     return []

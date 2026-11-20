@@ -195,7 +195,7 @@ alertas-service/src/main/java/co/edu/unillanos/sisalert/alertas/
 ├── service/        ZonaService, AlertaService, SincronizacionService
 ├── repository/     ZonaRepository, LecturaRepository, AlertaRepository
 ├── model/          Zona, Lectura, Alerta, NivelAlerta (enum)
-├── client/         ClienteDatosExternos (interfaz), ClienteIdeam, ClienteSimulado
+├── client/         ClienteDatosExternos (interfaz), ClienteOpenMeteo, ClienteIdeam, ClienteSimulado, ClienteEscenario
 ├── rules/          ReglaDeUmbral
 ├── dto/            AlertaDto, ZonaDto
 └── config/         CargaInicial (zonas reales) y CorsConfig
@@ -387,7 +387,7 @@ Si la fuente externa falla antes de terminar, no se modifica ninguna alerta y se
 
 | Situación | Comportamiento |
 |---|---|
-| Credenciales incorrectas | El frontend muestra "Credenciales incorrectas" y permanece en el login |
+| Credenciales incorrectas | El frontend muestra "Usuario o contraseña incorrectos" y permanece en el login |
 | API de autenticación sin respuesta | El frontend muestra "No se pudo conectar con el servicio" |
 | Usuario sin token abre `/alertas` | `RutaProtegida` lo redirige a `/login` |
 | Fuente externa no disponible | El microservicio responde `502`; el frontend avisa del problema y conserva las alertas que ya mostraba |

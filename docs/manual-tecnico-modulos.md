@@ -23,7 +23,7 @@ flowchart TD
         Vite["Proxy Inverso (Vite :5173)"]
         AuthApi["API de Autenticación (.NET 10 :5132)"]
         AlertasService["Microservicio de Alertas (Spring Boot :8081)"]
-        MySQL[("Base de Datos (MySQL :3306)")]
+        PG[("Base de Datos (PostgreSQL :5432)")]
     end
 
     subgraph FuentesExternas["Servicios Meteorológicos Externos"]
@@ -34,7 +34,7 @@ flowchart TD
     UI -->|HTTP :5173| Vite
     Vite -->|"/auth-api/... -> :5132"| AuthApi
     Vite -->|"/alertas-api/... -> :8081"| AlertasService
-    AlertasService -->|JDBC TCP :3306| MySQL
+    AlertasService -->|JDBC TCP :5432| PG
     AlertasService -.->|HTTPS REST| OpenMeteo
     AlertasService -.->|HTTPS REST| IDEAM
 ```
@@ -47,7 +47,7 @@ flowchart TD
 
 ## 2. Microservicio de Alertas (`alertas-service`)
 
-Construido en **Java 17/21** con **Spring Boot 3.5**, **Spring Data JPA** y **MySQL 8.x**. Su responsabilidad exclusiva es gestionar las zonas de riesgo, almacenar lecturas meteorológicas, evaluar los umbrales de alerta y exponer la API REST.
+Construido en **Java 17/21** con **Spring Boot 3.5**, **Spring Data JPA** y **PostgreSQL 16** (esquema `alertas`, migraciones Flyway). Su responsabilidad exclusiva es gestionar las zonas de riesgo, almacenar lecturas meteorológicas, evaluar los umbrales de alerta y exponer la API REST.
 
 Organización interna por capas:
 
@@ -58,7 +58,7 @@ co.edu.unillanos.sisalert.alertas/
 ├── controller/     # Endpoints HTTP REST
 ├── dto/            # Objetos de transferencia de datos
 ├── exception/      # Manejo global de excepciones (HTTP 502)
-├── model/          # Entidades JPA (Mapeo a tablas MySQL)
+├── model/          # Entidades JPA (Mapeo a tablas PostgreSQL)
 ├── repository/     # Interfaces de acceso a datos (Spring Data JPA)
 ├── rules/          # Reglas de negocio puras (Umbrales de semáforo)
 ├── security/       # Extracción e inspección del token JWT
@@ -173,7 +173,7 @@ frontend/src/
 | Archivo | Qué hace | Por qué lo hace |
 |---|---|---|
 | `apiClient.js` | Función `apiFetch` centralizada. Adjunta automáticamente `Authorization: Bearer <token>`, intercepta respuestas 401 (redireccionando a `/login`) y limpia respuestas de error. | Evita repetir cabeceras en cada llamada y oculta páginas HTML o stack traces crudos del servidor para que el usuario solo vea mensajes legibles. |
-| `alertasApi.js` | Funciones `getAlertas()`, `sincronizar()` y `getHistoricoZona(zonaId)`. Normaliza los estados del backend a clases CSS (`verde`, `amarillo`, `rojo`, `sin-datos`). | Si el backend está apagado y está activado el modo demostración, conmuta a `alertasMock.js`. Si ocurre un error 502 de fuente externa, lo propaga para mostrar la alerta en rojo en pantalla. Provee acceso al histórico de lecturas en MySQL. |
+| `alertasApi.js` | Funciones `getAlertas()`, `sincronizar()` y `getHistoricoZona(zonaId)`. Normaliza los estados del backend a clases CSS (`verde`, `amarillo`, `rojo`, `sin-datos`). | Si el backend está apagado y está activado el modo demostración, conmuta a `alertasMock.js`. Si ocurre un error 502 de fuente externa, lo propaga para mostrar la alerta en rojo en pantalla. Provee acceso al histórico de lecturas en PostgreSQL. |
 | `authApi.js` | Funciones `login()` y `register()` contra `/auth-api/api/auth`. | Traduce respuestas no estándar de la API de identidad (como HTTP 500 por credenciales erróneas) a mensajes amigables como *"Usuario o contraseña incorrectos"*. |
 | `alertasMock.js` | Mock en memoria con las 3 zonas reales y umbrales 40/80 mm. | Permite que el frontend sea probado de forma autónoma sin backend si fuera necesario. |
 
@@ -185,7 +185,7 @@ frontend/src/
 |---|---|---|
 | `LoginPage.jsx` | Formulario de acceso ciudadano. Guarda el JWT en `sessionStorage` y navega a `/estaciones`. | Puerta de entrada segura al sistema. |
 | `EstacionesPage.jsx` | **Tablero Principal:** Muestra una tarjeta por cada una de las 3 zonas con su indicador de semáforo. Consulta `GET /api/alertas` cada 5 segundos, contiene el botón **«Sincronizar lecturas»**, aloja el mapa georreferenciado e integra el botón para abrir el modal de histórico por cuenca. | Es el centro de monitoreo en tiempo real. Si las alertas están en gris, indica que el sistema arrancó en limpio y requiere sincronizar. |
-| `ModalHistoricoZona.jsx` | **Modal de Tendencias y Análisis Hidrológico 24h:** Ventana modal emergente que consume el endpoint histórico de MySQL. Calcula la pendiente de la lluvia (ascendente ↗, descendente ↘ o estable →), grafica un **histograma interactivo de barras** con líneas guía de umbrales críticos (40 mm amarillo, 80 mm rojo) y desglosa la tabla de mediciones recientes con fecha, hora, mm y fuente. | Permite a los analistas de gestión del riesgo y organismos de socorro determinar si una creciente viene en aumento acelerado o si el caudal ya comenzó a drenar, facilitando decisiones preventivas fundamentadas. |
+| `ModalHistoricoZona.jsx` | **Modal de Tendencias y Análisis Hidrológico 24h:** Ventana modal emergente que consume el endpoint histórico. Calcula la pendiente de la lluvia (ascendente ↗, descendente ↘ o estable →), grafica un **histograma interactivo de barras** con líneas guía de umbrales críticos (40 mm amarillo, 80 mm rojo) y desglosa la tabla de mediciones recientes con fecha, hora, mm y fuente. | Permite a los analistas de gestión del riesgo y organismos de socorro determinar si una creciente viene en aumento acelerado o si el caudal ya comenzó a drenar, facilitando decisiones preventivas fundamentadas. |
 | `AlertasPage.jsx` | **Vista de Alertas Activas:** Filtra y ordena las zonas que están en `PRECAUCION` o `PELIGRO` (las más críticas primero). | Permite a los organismos de socorro y a la comunidad ver de inmediato dónde hay peligro inminente de desbordamiento. |
 | `BannerEmergencia.jsx` | **Banner de Alerta Crítica y Evacuación:** Franja roja parpadeante que se activa automáticamente si alguna cuenca entra en nivel `PELIGRO` (≥ 80 mm). Despliega teléfonos de auxilio de Villavicencio (Bomberos 119, Cruz Roja 132, Defensa Civil 144) y puntos de encuentro seguros del POMCA. | Protege la vida del ciudadano. En un SAT real, el usuario no solo debe saber que hay peligro, sino qué protocolo de evacuación seguir y a quién llamar. |
 | `MapaVillavicencio.jsx` | **Centro de Georreferenciación en Vivo:** Integra un mapa satelital/cartográfico interactivo mediante **Leaflet / OpenStreetMap** con marcadores telemétricos en las coordenadas exactas de los 3 sectores de riesgo urbano en Villavicencio (`[4.148, -73.634]` Barzal/Guatiquía Norte, `[4.128, -73.626]` Villacentro/Caño Grande Centro, `[4.075, -73.655]` Catumare/Porfía/Guayuriba Sur). Incluye aros de pulso radar por color del semáforo y popups con detalles hidrológicos. Además, incorpora una **vista de respaldo vectorial offline** con el trazado del río Guatiquía, río Guayuriba y caño Maizaro. | Brinda conciencia situacional geoespacial inmediata a organismos de socorro y ciudadanos. Permite entender qué zonas están aguas arriba y cuáles están aguas abajo. |
@@ -193,9 +193,9 @@ frontend/src/
 
 ---
 
-## 4. Base de Datos MySQL (`database/init_mysql.sql`)
+## 4. Base de Datos PostgreSQL (migraciones Flyway)
 
-La persistencia se ejecuta en **MySQL Server 8.x** bajo el esquema **`sisalert_db`**.
+La persistencia se ejecuta en **PostgreSQL 16**, base **`sisalert`**, esquema **`alertas`**. Las tablas las crea y versiona Flyway con `alertas-service/src/main/resources/db/migration` (`V1__esquema_inicial.sql`, `V2__crud_zonas.sql`). La API de identidad usa el esquema `identidad` de la misma base.
 
 ```mermaid
 erDiagram
@@ -248,7 +248,7 @@ sequenceDiagram
     participant Srv as SincronizacionService
     participant Ext as ClienteOpenMeteo / IDEAM
     participant Rule as ReglaDeUmbral
-    participant DB as MySQL (sisalert_db)
+    participant DB as PostgreSQL (sisalert)
 
     Usuario->>UI: Clic en «Sincronizar lecturas»
     UI->>Api: sincronizar()
@@ -280,7 +280,7 @@ sequenceDiagram
 | **Frontend** | React 19 + Vite | **5173** | Interfaz de usuario y proxy inverso |
 | **Microservicio Alertas** | Spring Boot 3.5 | **8081** | Gestión de cuencas, lectura meteorológica y semáforos |
 | **API Autenticación** | ASP.NET Core (.NET 10) | **5132** | Emisión de tokens JWT y registro de usuarios |
-| **Base de Datos** | MySQL Server | **3306** | Almacenamiento persistente (`sisalert_db`) |
+| **Base de Datos** | PostgreSQL 16 | **5432** | Almacenamiento persistente (`sisalert`, esquemas `alertas` e `identidad`) |
 | **Fuente Meteorológica** | Open-Meteo / IDEAM | **443 (HTTPS)** | Proveedor de mediciones pluviométricas en tiempo real |
 
 ---
@@ -292,7 +292,7 @@ Para superar el alcance de un CRUD tradicional y convertir a SisAlert en un **Si
 ### 1. Monitoreo Autónomo 24/7 en Segundo Plano (`@Scheduled`)
 - **Problema previo:** El sistema solo consultaba el clima si un usuario iniciaba sesión y presionaba manualmente un botón en el navegador. En una creciente súbita nocturna, la comunidad no recibiría alerta si nadie estaba despierto mirando la pantalla.
 - **Implementación técnica:** Se activó `@EnableScheduling` en `AlertasServiceApplication` y se creó `MonitoreoAutonomoTask` que corre de forma continua cada 60 segundos (configurable por `alertas.monitoreo-automatico.intervalo-ms`).
-- **Comportamiento:** Cada minuto, el microservicio consulta satélites/radares de Open-Meteo para las cuencas de Villavicencio, evalúa los umbrales de 40/80 mm, almacena la lectura histórica en MySQL y actualiza el semáforo sin requerir presencia humana.
+- **Comportamiento:** Cada minuto, el microservicio consulta satélites/radares de Open-Meteo para las cuencas de Villavicencio, evalúa los umbrales de 40/80 mm, almacena la lectura histórica en PostgreSQL y actualiza el semáforo sin requerir presencia humana.
 
 ### 2. Banner de Emergencia Crítica y Protocolo de Evacuación (`BannerEmergencia.jsx`)
 - **Problema previo:** Si el semáforo cambiaba a rojo, solo se pintaba una pequeña tarjeta de color sin instrucciones claras para el ciudadano.

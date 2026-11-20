@@ -68,12 +68,12 @@ export default function ModalHistoricoZona({ zona, onClose }) {
           </div>
         </div>
 
-        <h4>Evolución Temporal de Precipitaciones (MySQL)</h4>
+        <h4>Evolución Temporal de Precipitaciones</h4>
         {cargando ? (
           <p className="vacio">Cargando registros históricos de la base de datos...</p>
         ) : lecturas.length === 0 ? (
           <p className="vacio">
-            Aún no hay suficientes lecturas persistidas en MySQL para esta cuenca.
+            Aún no hay suficientes lecturas registradas para esta cuenca.
           </p>
         ) : (
           <>
