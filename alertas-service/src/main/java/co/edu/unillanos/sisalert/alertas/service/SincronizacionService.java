@@ -69,6 +69,9 @@ public class SincronizacionService {
 
             alertaRepository.findByZonaIdAndVigenteTrue(m.zona().getId())
                     .forEach(anterior -> anterior.setVigente(false));
+            // Fuerza el UPDATE antes del INSERT siguiente: el índice único
+            // ux_alerta_vigente admite una sola alerta vigente por zona.
+            alertaRepository.flush();
 
             NivelAlerta nivel = regla.evaluar(m.mm());
             alertaRepository.save(new Alerta(m.zona(), nivel, regla.mensajePara(nivel), ahora));

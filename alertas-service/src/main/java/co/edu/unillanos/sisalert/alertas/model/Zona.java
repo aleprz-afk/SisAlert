@@ -16,7 +16,7 @@ public class Zona {
     @Column(nullable = false, unique = true, length = 100)
     private String nombre;
 
-    @Column(nullable = false, length = 100)
+    @Column(nullable = false, length = 255)
     private String cuerpoAgua;
 
     @Column(nullable = false)
@@ -28,6 +28,13 @@ public class Zona {
     protected Zona() { }
 
     public Zona(String nombre, String cuerpoAgua, String comunidades, String codigoEstacion) {
+        this.nombre = nombre;
+        this.cuerpoAgua = cuerpoAgua;
+        this.comunidades = comunidades;
+        this.codigoEstacion = codigoEstacion;
+    }
+
+    public void actualizar(String nombre, String cuerpoAgua, String comunidades, String codigoEstacion) {
         this.nombre = nombre;
         this.cuerpoAgua = cuerpoAgua;
         this.comunidades = comunidades;

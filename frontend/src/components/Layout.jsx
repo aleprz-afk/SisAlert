@@ -12,6 +12,7 @@ export default function Layout() {
         <nav className="menu">
           <NavLink to="/estaciones">Tablero</NavLink>
           <NavLink to="/alertas">Alertas</NavLink>
+          <NavLink to="/zonas">Zonas</NavLink>
         </nav>
         <div className="sesion">
           <span>{usuario}</span>

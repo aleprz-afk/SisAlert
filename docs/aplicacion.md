@@ -1,7 +1,7 @@
 # Diseño de aplicación
 
 **Proyecto:** Sistema de Alertas Tempranas de Crecientes — Villavicencio
-**Asignatura:** Telemática 1 · Parcial I · 2026-II · Universidad de los Llanos
+**Asignatura:** Telemática 1 · Proyecto final · 2026-II · Universidad de los Llanos
 **Ubicación en el repositorio:** `docs/aplicacion.md`
 
 ---
@@ -38,7 +38,7 @@ El **CU-03 es la funcionalidad de negocio** que se demuestra en la sustentación
 | `PRECAUCION` | Lluvia acumulada relevante; se recomienda estar atento | Amarillo |
 | `PELIGRO` | Lluvia intensa; posible creciente, se recomienda prepararse para evacuar | Rojo |
 
-Una zona que aún no tiene lecturas se muestra como "Sin datos" en gris. No es un nivel de alerta, sino un estado de pantalla que indica que falta pulsar "Actualizar datos".
+Una zona que aún no tiene lecturas se muestra como "Sin datos" en gris. No es un nivel de alerta, sino un estado de pantalla que indica que falta pulsar "Sincronizar lecturas" en el tablero.
 
 ### 2.4 Fuera de alcance del MVP
 
@@ -48,7 +48,7 @@ Una zona que aún no tiene lecturas se muestra como "Sin datos" en gris. No es u
 - Histórico y estadísticas de lluvias.
 - Actualización automática programada.
 
-Estos puntos pueden formar parte de la entrega final del curso, pero no del parcial.
+Estos puntos pueden formar parte de una siguiente iteración del proyecto, pero no del alcance actual del MVP.
 
 ---
 
@@ -60,37 +60,54 @@ Tecnología: React con Vite. El frontend solo presenta información y llama a lo
 
 | Pantalla | Ruta | Acceso | Función |
 |---|---|---|---|
-| Login | `/login` | Público | Formulario de usuario o correo y contraseña |
-| Alertas | `/alertas` | Solo con sesión iniciada | Lista de zonas con su nivel, botón "Actualizar datos" y botón "Cerrar sesión" |
+| Login | `/login` | Público | Formulario de usuario o correo y contraseña, con enlace al registro |
+| Registro | `/registro` | Público | Crea un usuario en la API de autenticación |
+| Tablero | `/estaciones` | Solo con sesión iniciada | Una tarjeta por zona con su nivel y el botón "Sincronizar lecturas" (CU-02 y CU-03) |
+| Alertas | `/alertas` | Solo con sesión iniciada | Solo las zonas en `PRECAUCION` o `PELIGRO`, la más grave primero (CU-02) |
+| Zonas | `/zonas` | Solo con sesión iniciada | CRUD de zonas de riesgo: crear, editar y eliminar |
 
-La ruta `/` redirige a `/alertas` si hay sesión, o a `/login` si no la hay.
+La barra superior (`Layout`) muestra el usuario y el botón "Salir" en las pantallas con sesión. Cualquier otra ruta redirige a `/estaciones`, y `RutaProtegida` envía a `/login` si no hay sesión.
 
 ### 3.2 Comportamiento de cada pantalla
 
 **Login**
 
 1. El usuario escribe usuario o correo y contraseña.
-2. Si algún campo está vacío, se muestra un mensaje y no se envía la petición.
+2. Si algún campo está vacío, el formulario no se envía.
 3. Se llama al login de la API de autenticación.
-4. Si es exitoso, se guarda el token en `sessionStorage` y se navega a `/alertas`.
-5. Si falla, se muestra "Credenciales incorrectas" (o "No se pudo conectar con el servicio" si no hubo respuesta).
+4. Si es exitoso, se guarda el token en `sessionStorage` y se navega a `/estaciones`.
+5. Si falla, se muestra "Usuario o contraseña incorrectos" (o un mensaje de servicio no disponible si no hubo respuesta).
 6. Mientras espera la respuesta, el botón queda deshabilitado.
+
+**Tablero**
+
+1. Al abrir la pantalla, consulta las alertas vigentes (CU-02) y repite la consulta cada 5 segundos.
+2. Muestra una tarjeta por zona con su nombre, cuerpo de agua, comunidades, nivel (con color), mensaje, lluvia acumulada en mm y fecha y hora de la última lectura.
+3. El botón "Sincronizar lecturas" ejecuta el CU-03 y muestra la lista actualizada que devuelve el servicio.
+4. "Salir" borra el token y regresa a `/login`.
 
 **Alertas**
 
-1. Al abrir la pantalla, consulta las alertas vigentes (CU-02).
-2. Muestra una tarjeta por zona con su nombre, cuerpo de agua, comunidades, nivel (con color), precipitación y fecha y hora de la última actualización.
-3. El botón "Actualizar datos" ejecuta el CU-03 y, al terminar, vuelve a mostrar la lista.
-4. "Cerrar sesión" borra el token y regresa a `/login`.
+1. Usa la misma consulta del tablero y filtra en el navegador las zonas en `PRECAUCION` o `PELIGRO`.
+2. Si ninguna zona está en riesgo, lo dice; si aún no hay lecturas, indica que se sincronice desde el tablero.
 
-Estados que debe manejar la pantalla de alertas:
+**Zonas**
+
+1. Lista las zonas con su cuerpo de agua, comunidades y código de estación.
+2. El formulario sirve para crear una zona o editar la seleccionada con "Editar".
+3. Al guardar, el servicio valida campos obligatorios, nombre y estación únicos; responde `400` o `409` con un mensaje legible.
+4. "Eliminar" pide confirmación y borra en cascada las lecturas y alertas de la zona.
+5. Los cambios se guardan en PostgreSQL y sobreviven a reinicios.
+
+Estados que manejan las pantallas:
 
 | Estado | Qué se muestra |
 |---|---|
 | Cargando | Indicador de carga |
-| Sin datos | Zonas en gris con el texto "Sin datos; pulse Actualizar datos" |
+| Sin datos | Zonas en gris con "Sin datos" y la indicación de pulsar "Sincronizar lecturas" |
 | Con datos | Tarjetas de color según el nivel |
-| Error | Mensaje claro y las alertas anteriores, si las había |
+| Error | Mensaje claro y las zonas que ya se mostraban, si las había |
+| Modo demostración | Aviso visible cuando el microservicio no responde y se usan datos simulados (ver README) |
 
 ### 3.3 Organización del código
 
@@ -98,25 +115,38 @@ Estados que debe manejar la pantalla de alertas:
 frontend/src/
 ├── pages/
 │   ├── LoginPage.jsx
-│   └── AlertasPage.jsx
+│   ├── RegistroPage.jsx
+│   ├── EstacionesPage.jsx    # Tablero de zonas y botón "Sincronizar lecturas"
+│   ├── AlertasPage.jsx       # Zonas en precaución o peligro
+│   └── ZonasPage.jsx         # CRUD de zonas de riesgo
 ├── components/
-│   ├── ZonaCard.jsx          # Tarjeta de una zona con su color de nivel
-│   └── RutaProtegida.jsx     # Redirige a /login si no hay token
-├── services/
-│   ├── authService.js        # Llamadas a la API de autenticación
-│   └── alertasService.js     # Llamadas al microservicio de alertas
+│   ├── Layout.jsx            # Barra superior con usuario y "Salir"
+│   ├── RutaProtegida.jsx     # Redirige a /login si no hay token
+│   └── ChipModoDemo.jsx      # Aviso de modo demostración
+├── context/
+│   ├── AuthContext.jsx       # AuthProvider: token, login, registro y cierre de sesión
+│   ├── sesionContext.js      # El contexto de React de la sesión
+│   └── useAuth.js            # Hook para leer la sesión desde las pantallas
+├── api/
+│   ├── apiClient.js          # fetch común: agrega el token y normaliza errores
+│   ├── authApi.js            # Llamadas a la API de autenticación
+│   ├── alertasApi.js         # Llamadas al microservicio de alertas y nivel → color
+│   └── alertasMock.js        # Datos simulados con el mismo contrato
+├── utils/
+│   └── formato.js            # Fechas y milímetros para mostrar
 ├── App.jsx                   # Definición de rutas
 └── main.jsx
 ```
 
 | Módulo | Responsabilidad |
 |---|---|
-| `authService` | Login y manejo del token (guardar, leer, borrar) |
-| `alertasService` | Consultar alertas y pedir la actualización, enviando `Authorization: Bearer <token>` |
-| `RutaProtegida` | Impedir el acceso a `/alertas` sin token |
-| `ZonaCard` | Mostrar una zona; es el único lugar donde se traduce el nivel a un color |
+| `apiClient` | Enviar cada petición con `Authorization: Bearer <token>`, cerrar la sesión ante un `401` y convertir los errores en mensajes legibles |
+| `authApi` | Login y registro contra la API de autenticación |
+| `alertasApi` | Consultar alertas y pedir la sincronización; es el único lugar donde se traduce el nivel a un color |
+| `AuthContext` / `useAuth` | Guardar, leer y borrar el token, y exponer el usuario a las pantallas |
+| `RutaProtegida` | Impedir el acceso a las pantallas con sesión sin token |
 
-Las páginas no llaman directamente a `fetch`: lo hacen a través de los servicios. Así, si cambia una ruta de un servicio, solo se modifica un archivo.
+Las páginas no llaman directamente a `fetch`: lo hacen a través de `src/api/`. Así, si cambia una ruta de un servicio, solo se modifica un archivo.
 
 ### 3.4 Rutas que usa el frontend
 
@@ -124,25 +154,26 @@ Gracias al proxy descrito en el documento de infraestructura, el navegador solo 
 
 | Acción | Ruta que llama el navegador | Servicio de destino |
 |---|---|---|
-| Login | `POST /auth/api/auth/login` | API de autenticación |
+| Login | `POST /auth-api/api/auth/login` | API de autenticación |
+| Registro | `POST /auth-api/api/auth/register` | API de autenticación |
 | Consultar alertas | `GET /alertas-api/api/alertas` | Microservicio de alertas |
-| Actualizar datos | `POST /alertas-api/api/lecturas/sincronizar` | Microservicio de alertas |
+| Sincronizar lecturas | `POST /alertas-api/api/lecturas/sincronizar` | Microservicio de alertas |
 
 ---
 
 ## 4. Microservicio de alertas
 
-Tecnología: Java con Spring Boot, Spring Web, Spring Data JPA y H2 en memoria. Es el servicio de dominio del proyecto.
+Tecnología: Java con Spring Boot, Spring Web, Spring Data JPA y PostgreSQL. Es el servicio de dominio del proyecto.
 
 ### 4.1 Capas
 
 ```mermaid
 flowchart TB
     C["Controller<br/>recibe y responde REST"] --> S["Service<br/>orquesta la lógica"]
-    S --> R["Repository<br/>acceso a H2"]
+    S --> R["Repository<br/>acceso a PostgreSQL"]
     S --> K["Cliente de datos externos<br/>consulta la fuente meteorológica"]
     S --> U["Regla de umbral<br/>convierte mm de lluvia en nivel"]
-    R --> H[("H2 en memoria")]
+    R --> H[("PostgreSQL")]
     K --> E["Fuente externa"]
 ```
 
@@ -150,7 +181,7 @@ flowchart TB
 |---|---|---|
 | Controller | Recibir peticiones HTTP, validar lo básico y devolver JSON con el código HTTP correcto | Contener lógica de negocio ni acceder a la base de datos |
 | Service | Coordinar el proceso: pedir datos, evaluar el nivel, guardar lecturas y alertas | Conocer detalles de HTTP ni del formato de la fuente externa |
-| Repository | Leer y escribir en H2 | Tomar decisiones de negocio |
+| Repository | Leer y escribir en PostgreSQL | Tomar decisiones de negocio |
 | Cliente de datos externos | Consultar la fuente meteorológica y traducir su respuesta al modelo propio | Guardar datos |
 | Regla de umbral | Convertir la precipitación en un nivel de alerta | Consultar bases de datos o servicios |
 
@@ -174,7 +205,7 @@ Que el cliente de datos externos sea una **interfaz** permite cambiar de fuente 
 
 ### 4.3 Datos iniciales
 
-Al arrancar, el servicio carga las tres zonas reales de riesgo en H2 a través de `CargaInicial`:
+Al arrancar, el servicio carga las tres zonas reales de riesgo en PostgreSQL a través de `CargaInicial` (solo si la tabla está vacía):
 
 | Zona | Estación IDEAM | Código | Cuerpos de agua | Comunidades (POMCA) |
 |---|---|---|---|---|
@@ -193,6 +224,10 @@ Todos los endpoints devuelven JSON. Prefijo común: `/api`.
 | Método | Ruta | Descripción | Caso de uso |
 |---|---|---|---|
 | GET | `/api/zonas` | Lista de zonas de riesgo | Apoyo a CU-02 |
+| GET | `/api/zonas/{id}` | Una zona por id | CRUD |
+| POST | `/api/zonas` | Crea una zona | CRUD |
+| PUT | `/api/zonas/{id}` | Actualiza una zona | CRUD |
+| DELETE | `/api/zonas/{id}` | Elimina una zona y sus lecturas/alertas en cascada | CRUD |
 | GET | `/api/alertas` | Alerta vigente de cada zona | CU-02 |
 | POST | `/api/lecturas/sincronizar` | Consulta la fuente externa, guarda lecturas y regenera alertas | CU-03 |
 
@@ -206,7 +241,8 @@ Respuesta `200 OK`:
     "id": 1,
     "nombre": "Zona de ejemplo 1",
     "cuerpoAgua": "Caño de ejemplo",
-    "comunidades": "Barrio A, Barrio B"
+    "comunidades": "Barrio A, Barrio B",
+    "codigoEstacion": "0035035100"
   }
 ]
 ```
@@ -249,6 +285,30 @@ Respuesta de error:
   "mensaje": "No fue posible consultar la fuente de datos meteorológicos."
 }
 ```
+
+### 5.4 CRUD de zonas
+
+`POST /api/zonas` y `PUT /api/zonas/{id}` reciben:
+
+```json
+{
+  "nombre": "Zona Guatiquía Norte",
+  "cuerpoAgua": "Río Guatiquía · Caño Parrado",
+  "comunidades": "Barzal Alto, Siete de Agosto",
+  "codigoEstacion": "0035035100"
+}
+```
+
+| Código | Cuándo |
+|---|---|
+| `201 Created` | Zona creada; devuelve la zona con su `id` |
+| `200 OK` | Zona actualizada |
+| `204 No Content` | Zona eliminada (lecturas y alertas en cascada) |
+| `400 Bad Request` | Campo vacío o demasiado largo; `{"error":"SOLICITUD_INVALIDA","mensaje":"..."}` |
+| `404 Not Found` | El id no existe; `{"error":"NO_ENCONTRADO","mensaje":"..."}` |
+| `409 Conflict` | Nombre o código de estación duplicado; `{"error":"CONFLICTO","mensaje":"..."}` |
+
+Los datos se guardan en PostgreSQL y sobreviven a reinicios del servicio.
 
 ---
 
@@ -300,7 +360,7 @@ sequenceDiagram
     A-->>F: Token JWT
     F->>S: GET /api/alertas (Bearer token)
     S-->>F: Alertas vigentes por zona
-    C->>F: Clic en "Actualizar datos"
+    C->>F: Clic en "Sincronizar lecturas"
     F->>S: POST /api/lecturas/sincronizar
     S->>E: Consulta de precipitación
     E-->>S: Datos de estaciones
@@ -345,7 +405,7 @@ Si la fuente externa falla antes de terminar, no se modifica ninguna alerta y se
 | Arquitectura por capas en el microservicio | Es un patrón conocido, fácil de explicar y de probar |
 | Cliente de datos externos como interfaz | Permite cambiar la fuente de datos sin reescribir el servicio |
 | Umbrales en configuración | Se ajustan sin recompilar |
-| Una sola regla, basada en lluvia acumulada | Suficiente para demostrar la funcionalidad; evita complejidad innecesaria en el parcial |
+| Una sola regla, basada en lluvia acumulada | Suficiente para demostrar la funcionalidad; evita complejidad innecesaria en el MVP |
 | Sincronización bajo demanda con un botón | Hace visible el flujo del segundo servicio durante la demostración |
 | Código `502` para fallas de la fuente externa | Distingue un fallo del proveedor de datos de un fallo del propio servicio |
 

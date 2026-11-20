@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage'
 import RegistroPage from './pages/RegistroPage'
 import EstacionesPage from './pages/EstacionesPage'
 import AlertasPage from './pages/AlertasPage'
+import ZonasPage from './pages/ZonasPage'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
       <Route element={<RutaProtegida><Layout /></RutaProtegida>}>
         <Route path="/estaciones" element={<EstacionesPage />} />
         <Route path="/alertas" element={<AlertasPage />} />
+        <Route path="/zonas" element={<ZonasPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/estaciones" replace />} />

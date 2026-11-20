@@ -1,7 +1,7 @@
 # Diseño del modelo de datos
 
 **Proyecto:** Sistema de Alertas Tempranas de Crecientes — Villavicencio
-**Asignatura:** Telemática I· Parcial I · 2026-II · Universidad de los Llanos
+**Asignatura:** Telemática I · Proyecto final · 2026-II · Universidad de los Llanos
 **Ubicación en el repositorio:** `docs/modelo-datos.md`
 
 ---
@@ -10,7 +10,7 @@
 
 Definir qué información guarda el microservicio de alertas, cómo se relacionan sus tablas y qué reglas cumplen los datos.
 
-**Alcance:** este modelo pertenece únicamente al microservicio de alertas (base H2 en memoria). Los usuarios y contraseñas los administra la API de autenticación con su propio almacenamiento; el microservicio de alertas no los guarda ni los lee.
+**Alcance:** este documento describe el modelo del microservicio de alertas, persistido en PostgreSQL (tablas `zona`, `lectura` y `alerta`). La API de identidad (`auth-service/`) tiene su propio modelo en la misma base: `usuarios`, `roles`, `permisos`, `usuarios_roles` y `roles_permisos`, gestionado con EF Core. El microservicio de alertas no guarda ni lee usuarios.
 
 ---
 
@@ -116,7 +116,7 @@ Restricciones de la base de datos:
 
 ## 6. Datos iniciales
 
-Al arrancar, el servicio carga las tres zonas reales de Villavicencio en H2. Las lecturas y alertas comienzan vacías.
+Al arrancar por primera vez, el servicio carga las tres zonas reales de Villavicencio en PostgreSQL. Las lecturas y alertas comienzan vacías. En arranques posteriores `CargaInicial` no duplica nada porque solo siembra si la tabla `zona` está vacía.
 
 | Nombre de la zona | Cuerpo de agua | Comunidades | Código de estación |
 |---|---|---|---|
@@ -164,26 +164,29 @@ public class Alerta {
 
 ---
 
-## 8. Configuración de H2
+## 8. Configuración de PostgreSQL y migraciones
 
 En `alertas-service/src/main/resources/application.properties`:
 
 ```properties
 server.port=8081
 
-spring.datasource.url=jdbc:h2:mem:alertasdb
-spring.datasource.driver-class-name=org.h2.Driver
-spring.datasource.username=sa
-spring.datasource.password=
+spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/sisalert}
+spring.datasource.username=${DB_USER:sisalert}
+spring.datasource.password=${DB_PASSWORD:sisalert}
+spring.datasource.driver-class-name=org.postgresql.Driver
 
-spring.jpa.hibernate.ddl-auto=create-drop
-spring.h2.console.enabled=true
-spring.h2.console.path=/h2-console
+spring.jpa.hibernate.ddl-auto=validate
+spring.flyway.enabled=true
 ```
 
-- `mem:alertasdb` indica que la base vive en memoria y se pierde al apagar el servicio.
-- `create-drop` crea las tablas al arrancar a partir de las entidades y las elimina al apagar.
-- La consola de H2 queda disponible en `http://localhost:8081/h2-console`. Sirve para mostrar las tablas durante la demostración y para depurar. Se usa solo en desarrollo.
+- El esquema lo crea y versiona **Flyway** con los archivos de `src/main/resources/db/migration` (`V1__esquema_inicial.sql`, `V2__crud_zonas.sql`).
+- `ddl-auto=validate` hace que Hibernate solo compruebe que las entidades coincidan con las tablas; nunca las modifica.
+- Las migraciones se aplican solas al arrancar. La tabla `flyway_schema_history` registra la versión aplicada.
+- Las pruebas unitarias usan H2 en memoria (`src/test/resources/application.properties`), así que `mvnw test` no necesita PostgreSQL.
+- La API de identidad aplica sus propias migraciones de EF Core sobre las tablas `usuarios`, `roles`, `permisos`, `usuarios_roles` y `roles_permisos` de la misma base.
+
+Los datos viven en el volumen `sisalert-pgdata` del contenedor `sisalert-db`; sobreviven a reinicios del servicio y del contenedor. Solo se pierden si se borra el volumen explícitamente.
 
 ---
 
@@ -194,10 +197,10 @@ spring.h2.console.path=/h2-console
 | Tres tablas | Es el mínimo que separa la configuración (zona), el dato medido (lectura) y el resultado (alerta) |
 | Lecturas y alertas como registros separados | La lectura es un hecho externo; la alerta es una decisión del sistema. Separarlas permite explicar de dónde salió cada alerta |
 | Alertas que se reemplazan, no se actualizan | Conserva lo que ocurrió durante la ejecución sin agregar una tabla de historial |
-| `comunidades` como texto simple | Suficiente para el MVP; una tabla de comunidades añadiría complejidad que el parcial no pide |
+| `comunidades` como texto simple | Suficiente para el MVP; una tabla de comunidades añadiría complejidad que el alcance actual no pide |
 | `nivel` como texto | Legible en la base y compatible con lo que consume el frontend |
 | Umbrales fuera de la base de datos | Se ajustan por configuración sin recompilar |
-| H2 en memoria con `create-drop` | Cero instalación y el PDF contempla la persistencia en memoria como opcional |
+| PostgreSQL con migraciones (Flyway) | Persistencia real, control de versiones del esquema y datos que sobreviven a reinicios |
 | Modelo propio del microservicio | Ningún servicio lee los datos de otro; los usuarios quedan en la API de autenticación |
 
 ---
@@ -208,5 +211,5 @@ spring.h2.console.path=/h2-console
 - [ ] Campos coherentes con las respuestas JSON de `docs/aplicacion.md`
 - [ ] Zonas y estaciones de ejemplo definidas (Paso 4)
 - [ ] Entidades JPA creadas a partir de este documento
-- [ ] Tablas visibles en la consola de H2
+- [ ] Tablas visibles en PostgreSQL (`docker exec -it sisalert-db psql -U sisalert -d sisalert`)
 - [ ] Documento revisado por al menos otro integrante

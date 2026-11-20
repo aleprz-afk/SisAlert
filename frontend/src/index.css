@@ -224,7 +224,6 @@ input:focus, select:focus { outline: 2px solid var(--azul); border-color: transp
 .alerta-mensaje { margin: 0; }
 .alerta-meta { margin: 0; color: var(--gris); font-size: 0.88rem; }
 .alerta-accion { display: flex; align-items: center; justify-content: flex-end; gap: 0.7rem; }
-.reconocida { margin: 0; color: var(--verde); font-size: 0.9rem; }
 
 /* Integración con alertas-service: varias zonas y estado "sin datos" */
 .acciones-tablero { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
@@ -744,4 +743,70 @@ input:focus, select:focus { outline: 2px solid var(--azul); border-color: transp
   justify-content: flex-end;
   border-top: 1px solid var(--borde);
   padding-top: 0.8rem;
+}
+
+/* ---------- Gestión de zonas (CRUD) ---------- */
+.panel {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+}
+.formulario-zona h3 { margin: 0 0 0.8rem; font-size: 1.05rem; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
+.form-ancho { grid-column: 1 / -1; }
+.form-acciones { display: flex; gap: 0.7rem; margin-top: 0.9rem; }
+
+.btn-neutro {
+  border: 1px solid var(--borde);
+  background: #fff;
+  color: var(--texto);
+  border-radius: 6px;
+  padding: 0.65rem 1rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.btn-neutro:hover { background: #f3f4f6; }
+
+.tabla-contenedor {
+  overflow-x: auto;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+.tabla-zonas { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.tabla-zonas th,
+.tabla-zonas td {
+  text-align: left;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid #eef0f3;
+  vertical-align: top;
+}
+.tabla-zonas th {
+  background: #f7f9fb;
+  color: var(--gris);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.tabla-zonas tr:last-child td { border-bottom: 0; }
+.acciones-fila { display: flex; gap: 0.4rem; white-space: nowrap; }
+
+.btn-mini {
+  border: 1px solid var(--borde);
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.btn-mini:hover { background: #f3f4f6; }
+.btn-peligro { border-color: #e7b4b4; color: var(--rojo); }
+.btn-peligro:hover { background: #fdecec; }
+
+.mono { font-family: ui-monospace, 'Cascadia Code', monospace; }
+
+@media (max-width: 700px) {
+  .form-grid { grid-template-columns: 1fr; }
 }
