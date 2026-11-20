@@ -65,6 +65,18 @@ node -v
 ## Cómo levantar todo
  
 Se necesitan **tres terminales**, una por componente, más el contenedor de PostgreSQL. Conviene arrancarlos en este orden.
+
+En local **no hay que configurar nada**: cada servicio arranca en modo desarrollo con valores listos para el PostgreSQL de abajo. Las credenciales de producción nunca están en el repositorio (ver [Configuración y variables de entorno](#configuración-y-variables-de-entorno)).
+
+### 0. Base de datos PostgreSQL
+
+Los dos servicios la necesitan. La forma más rápida de tenerla es un contenedor:
+
+```bash
+docker run -d --name sisalert-db --restart unless-stopped   -e POSTGRES_DB=sisalert -e POSTGRES_USER=sisalert -e POSTGRES_PASSWORD=sisalert   -p 5432:5432 -v sisalert-pgdata:/var/lib/postgresql/data postgres:16-alpine
+```
+
+Si el contenedor ya existe pero está detenido: `docker start sisalert-db`. Los datos viven en el volumen `sisalert-pgdata` y sobreviven a reinicios del contenedor y de los servicios. Cada servicio crea sus tablas al arrancar: alertas con Flyway (esquema `alertas`) e identidad con EF Core (esquema `identidad`).
  
 ### 1. API de autenticación (terminal 1)
 
@@ -77,45 +89,25 @@ dotnet run --launch-profile http
 
 Queda escuchando en `http://localhost:5132`. Swagger está en `http://localhost:5132/swagger`.
 
-La cadena de conexión se toma de `ConnectionStrings:Identity` y se puede sobrescribir con la variable de entorno `ConnectionStrings__Identity`:
-
-```powershell
-$env:ConnectionStrings__Identity = "Host=localhost;Port=5432;Database=sisalert;Username=sisalert;Password=sisalert"
-```
-
-Al arrancar aplica sus migraciones de EF Core y crea el usuario inicial si no existe:
+El perfil `http` arranca en modo `Development`, que toma la cadena de conexión, la clave JWT de desarrollo y la contraseña inicial de admin de `appsettings.Development.json`. Al arrancar aplica sus migraciones de EF Core y crea el usuario inicial si no existe:
 
 | Usuario | Contraseña | Rol |
 |---|---|---|
 | `admin` | `Admin123*` | Admin |
 
+`Admin123*` es solo la contraseña de desarrollo. En producción la define la variable `Seed__AdminPassword`. Si `admin` ya existe en la base, no se vuelve a crear ni se cambia su contraseña: si alguien la cambió o desactivó el usuario, se puede borrar y reiniciar la API para que lo cree de nuevo (ver [Problemas frecuentes](#problemas-frecuentes)).
+
 Los usuarios registrados desde la pantalla de registro **ya no se pierden** al reiniciar: quedan en PostgreSQL. Las contraseñas se almacenan con hash y sal, nunca en texto plano.
  
 ### 2. Microservicio de alertas (terminal 2)
-
-El servicio necesita PostgreSQL. La forma más rápida de tenerlo es un contenedor:
-
-```bash
-docker run -d --name sisalert-db --restart unless-stopped \
-  -e POSTGRES_DB=sisalert -e POSTGRES_USER=sisalert -e POSTGRES_PASSWORD=sisalert \
-  -p 5432:5432 -v sisalert-pgdata:/var/lib/postgresql/data postgres:16-alpine
-```
-
-Si el contenedor ya existe pero está detenido: `docker start sisalert-db`. Los datos viven en el volumen `sisalert-pgdata` y sobreviven a reinicios del contenedor y del servicio. El esquema lo crea y versiona Flyway al arrancar (`alertas-service/src/main/resources/db/migration`).
-
-La conexión se configura con variables de entorno (los valores por defecto son los del comando anterior):
-
-| Variable | Valor por defecto |
-|---|---|
-| `DB_URL` | `jdbc:postgresql://localhost:5432/sisalert` |
-| `DB_USER` | `sisalert` |
-| `DB_PASSWORD` | `sisalert` |
 
 ```bash
 cd SisAlert/alertas-service
 ./mvnw spring-boot:run          # Linux / macOS
 mvnw.cmd spring-boot:run        # Windows
 ```
+
+Sin variables de entorno arranca con el perfil `dev` (`application-dev.properties`), que apunta al PostgreSQL del paso 0 y sincroniza automáticamente cada minuto.
 
 Queda escuchando en `http://localhost:8081`. La primera vez siembra las tres zonas de riesgo; en arranques posteriores conserva zonas, lecturas y alertas. Las zonas empiezan sin lecturas hasta que se sincroniza.
 
@@ -164,6 +156,35 @@ Recorrido de la demostración:
 2. Botón **Sincronizar lecturas**: el microservicio consulta la fuente de datos, guarda las lecturas y recalcula el nivel de cada zona (verde, amarillo o rojo).
 3. **Alertas** (`/alertas`): solo las zonas en precaución o peligro, la más grave primero.
 4. **Zonas** (`/zonas`): crear, editar y eliminar zonas de riesgo. Al eliminar una zona se borran en cascada sus lecturas y alertas.
+
+## Configuración y variables de entorno
+
+Cada servicio tiene dos modos:
+
+| | Desarrollo (local) | Producción (Azure) |
+|---|---|---|
+| alertas-service | Perfil `dev`, activo por defecto (`application-dev.properties`) | `SPRING_PROFILES_ACTIVE=prod` (`application-prod.properties`) |
+| API de identidad | `ASPNETCORE_ENVIRONMENT=Development` (`appsettings.Development.json`) | `ASPNETCORE_ENVIRONMENT=Production` |
+| Credenciales | Valores locales de prueba incluidos | **Solo variables de entorno**; en Azure, secretos de Key Vault |
+| Si falta una variable | — | El servicio **no arranca** y el error dice cuál falta |
+
+La lista completa de variables de producción, con ejemplos, está en [`.env.example`](.env.example). Las principales:
+
+| Variable | Servicio | Para qué |
+|---|---|---|
+| `DB_URL`, `DB_USER`, `DB_PASSWORD` | alertas | Conexión a PostgreSQL (en Azure con `?sslmode=require`) |
+| `ConnectionStrings__Identity` | identidad | Conexión a PostgreSQL (en Azure con `SSL Mode=Require`) |
+| `Jwt__Key` | identidad (y alertas, desde el paso 3) | Clave de firma de los tokens, mínimo 32 caracteres |
+| `Seed__AdminPassword` | identidad | Contraseña inicial de `admin` |
+| `ALERTAS_CORS_ORIGENES` | alertas | Dominio(s) del frontend desplegado |
+| `ALERTAS_FUENTE`, `ALERTAS_ESCENARIO` | alertas | Fuente de datos y escenario de demostración |
+
+`.env` y `.env.*` están en `.gitignore`; solo se sube la plantilla `.env.example`.
+
+En producción, además:
+- Swagger no se publica.
+- Los errores no devuelven detalles internos.
+- El monitoreo automático corre cada 15 minutos en vez de cada minuto.
 
 ## Endpoints del microservicio de alertas
 
@@ -229,6 +250,8 @@ Para la sustentación se usa `VITE_MOCK_ALERTAS=false`, así queda claro que los
 |---|---|---|
 | "No se pudo conectar con el servidor" al iniciar sesión | La API de autenticación no está corriendo o está en otro puerto | Revisar la terminal 1 y que diga `http://localhost:5132` |
 | "Usuario o contraseña incorrectos" | Credenciales inválidas o usuario desactivado | Revisar el usuario en Swagger (`/api/users`) o usar `admin` |
+| `admin` / `Admin123*` no entra | En esa base `admin` ya existía con otra contraseña, quedó desactivado o la API no está conectada a PostgreSQL | Revisar que la terminal 1 diga `Now listening`. Si sí, borrar `admin` y reiniciar la API para que lo cree de nuevo: `docker exec sisalert-db psql -U sisalert -d sisalert -c "DELETE FROM identidad.usuarios_roles WHERE usuario_id IN (SELECT id FROM identidad.usuarios WHERE username='admin'); DELETE FROM identidad.usuarios WHERE username='admin';"` |
+| `Perfil prod: faltan variables de entorno obligatorias: ...` o `Falta la clave JWT / la cadena de conexión` | Se arrancó en modo producción sin definir las variables | Definirlas (ver `.env.example`) o arrancar en modo desarrollo |
 | "No se pudo conectar con la base de datos" | PostgreSQL no está corriendo | `docker start sisalert-db` o revisar `DB_URL` / `ConnectionStrings__Identity` |
 | Quedaron tablas `zona`, `lectura`, `alerta` y `flyway_schema_history` en el esquema `public` | Base creada antes de separar los esquemas; ya no se usan (las zonas se vuelven a sembrar en `alertas`) | Opcional: `docker exec sisalert-db psql -U sisalert -d sisalert -c "DROP TABLE public.alerta, public.lectura, public.zona, public.flyway_schema_history"` |
 | El microservicio no arranca con `Flyway` o `EF Core` | Migraciones pendientes o base mal apuntada | Revisar el log; ambos aplican migraciones solos al arrancar |
