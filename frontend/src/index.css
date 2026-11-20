@@ -831,3 +831,27 @@ input:focus, select:focus { outline: 2px solid var(--azul); border-color: transp
 .riesgo-ia-nota { color: var(--gris); font-size: 0.8rem; }
 .factor-sube { color: var(--rojo); }
 .factor-baja { color: var(--verde); }
+
+/* ---------- Modo simulación (solo administrador) ---------- */
+.selector-datos { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+.selector-datos-etiqueta { opacity: 0.85; }
+.selector-datos select {
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  padding: 0.3rem 0.4rem;
+  font: inherit;
+}
+.selector-datos select option { color: var(--texto); }
+.aviso-simulacion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding: 0.6rem 1.25rem;
+  background: repeating-linear-gradient(45deg, #4a148c, #4a148c 12px, #5b1fa3 12px, #5b1fa3 24px);
+  color: #fff;
+  font-size: 0.9rem;
+}
+.aviso-simulacion .btn-secundario { margin-left: auto; }

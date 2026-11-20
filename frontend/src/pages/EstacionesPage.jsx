@@ -10,12 +10,14 @@ import ModalHistoricoZona from '../components/ModalHistoricoZona'
 import RiesgoIa from '../components/RiesgoIa'
 import { getAlertas, sincronizar } from '../api/alertasApi'
 import { useAuth } from '../context/useAuth'
+import { useSimulacion } from '../context/useSimulacion'
 import { fechaLocal, milimetros } from '../utils/formato'
 
 const INTERVALO_MS = 5000
 
 export default function EstacionesPage() {
   const { esAdmin } = useAuth()
+  const { escenario } = useSimulacion()
   const [zonas, setZonas] = useState([])
   const [zonaHistorico, setZonaHistorico] = useState(null)
   const [error, setError] = useState(null)
@@ -31,7 +33,7 @@ export default function EstacionesPage() {
 
     async function traer() {
       try {
-        const datos = await getAlertas()
+        const datos = await getAlertas(escenario)
         if (!cancelado) {
           setZonas(datos)
           setError(null)
@@ -49,7 +51,7 @@ export default function EstacionesPage() {
       cancelado = true
       clearInterval(id)
     }
-  }, [intento])
+  }, [intento, escenario])
 
   async function onSincronizar() {
     setSincronizando(true)
@@ -78,7 +80,7 @@ export default function EstacionesPage() {
           <ChipModoDemo onReintentar={refrescar} />
           {/* Sincronizar a mano es solo para administradores; el monitoreo automático
               actualiza los datos para todos. */}
-          {esAdmin && (
+          {esAdmin && !escenario && (
           <button
             type="button"
             className="btn-primario"

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getAlertas } from '../api/alertasApi'
+import { useSimulacion } from '../context/useSimulacion'
 
 const LINEAS_EMERGENCIA = [
   { nombre: 'Bomberos Villavicencio', tel: '119', tipo: 'Rescate e Inundación' },
@@ -11,13 +12,14 @@ const LINEAS_EMERGENCIA = [
 export default function BannerEmergencia() {
   const [alertasPeligro, setAlertasPeligro] = useState([])
   const [expandido, setExpandido] = useState(false)
+  const { escenario } = useSimulacion()
 
   useEffect(() => {
     let cancelado = false
 
     async function chequear() {
       try {
-        const datos = await getAlertas()
+        const datos = await getAlertas(escenario)
         if (!cancelado) {
           const peligrosas = datos.filter((z) => z.nivel === 'PELIGRO')
           setAlertasPeligro(peligrosas)
@@ -33,7 +35,7 @@ export default function BannerEmergencia() {
       cancelado = true
       clearInterval(id)
     }
-  }, [])
+  }, [escenario])
 
   if (alertasPeligro.length === 0) {
     return null
