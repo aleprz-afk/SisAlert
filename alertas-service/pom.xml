@@ -29,6 +29,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+        <!-- Health checks (/actuator/health/liveness y /readiness) para las sondas de Azure. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
         <!-- Valida los JWT emitidos por la API de identidad (firma, emisor, audiencia y vencimiento). -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

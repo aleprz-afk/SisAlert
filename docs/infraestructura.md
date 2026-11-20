@@ -6,6 +6,8 @@
 
 ---
 
+> **Este documento describe la ejecución local (desarrollo).** La arquitectura de producción en Azure está en [`arquitectura-nube.md`](arquitectura-nube.md), y las de aplicación y datos en [`arquitectura-aplicacion.md`](arquitectura-aplicacion.md) y [`arquitectura-datos.md`](arquitectura-datos.md).
+
 ## 1. Objetivo
 
 Describir qué piezas de software componen el MVP, dónde se ejecuta cada una, en qué puerto, cómo se comunican y qué se necesita instalar para correrlas.
