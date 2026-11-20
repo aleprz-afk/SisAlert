@@ -102,6 +102,15 @@ def _consultar_gemini(datos: dict, clave: str, modelo: str, timeout: float) -> s
     return "".join(p.get("text", "") for p in partes)
 
 
+def _motivo(error: urllib.error.HTTPError) -> str:
+    """Motivo legible del error de Gemini, p. ej. 'INVALID_ARGUMENT: API key not valid...'."""
+    try:
+        detalle = json.loads(error.read().decode("utf-8", "replace")).get("error", {})
+        return f"{detalle.get('status', '')}: {detalle.get('message', '')}"[:200]
+    except Exception:
+        return "sin detalle"
+
+
 def generar(datos: dict, timeout: float = 8.0) -> Boletin:
     """Boletín para una zona. Nunca lanza excepción: ante cualquier problema, plantilla."""
     if datos["nivel"] == "NORMAL":
@@ -116,8 +125,9 @@ def generar(datos: dict, timeout: float = 8.0) -> Boletin:
             raise ValueError("respuesta vacía o demasiado corta")
         return Boletin(texto=texto, fuente="gemini", modelo=modelo)
     except urllib.error.HTTPError as error:
-        # 429 = cuota agotada; 400/403 = clave o modelo inválidos. No se registra la clave.
-        log.warning("Gemini respondió HTTP %s; se usa la plantilla", error.code)
+        # 429 = cuota agotada; 400/403 = clave inválida o petición rechazada; 404 = modelo
+        # inexistente. Se registra el motivo que da Google (nunca la clave).
+        log.warning("Gemini respondió HTTP %s (%s); se usa la plantilla", error.code, _motivo(error))
     except Exception as error:
         log.warning("No se pudo usar Gemini (%s); se usa la plantilla", type(error).__name__)
     return plantilla(datos)

@@ -97,6 +97,15 @@ class BoletinServiceTest {
     }
 
     @Test
+    void enLaSimulacionLaPlantillaTambienSeReutilizaUnosMinutos() {
+        when(ia.redactarBoletin(any())).thenReturn(Optional.of(new BoletinIa("Atención...", "plantilla", null)));
+        for (int i = 0; i < 5; i++) {
+            service.simulado(zona, NivelAlerta.PELIGRO, 92, alto, "tormenta");
+        }
+        verify(ia, times(1)).redactarBoletin(any());
+    }
+
+    @Test
     void geminiSoloRecibeDatosEstructurados() {
         Map<String, Object> datos = BoletinService.datosParaBoletin(zona, NivelAlerta.PELIGRO, 92, alto);
         assertEquals(List.of("zona", "cuerpoAgua", "comunidades", "nivel", "precipitacionMm", "riesgoIa"),

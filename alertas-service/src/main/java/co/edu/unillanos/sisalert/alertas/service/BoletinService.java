@@ -33,10 +33,14 @@ import co.edu.unillanos.sisalert.alertas.repository.BoletinRepository;
 public class BoletinService {
 
     static final Duration REINTENTO_PLANTILLA = Duration.ofMinutes(30);
+    /** En la simulación, cuánto se reutiliza un boletín de plantilla antes de reintentar con Gemini. */
+    static final Duration REINTENTO_PLANTILLA_SIMULACION = Duration.ofMinutes(5);
+
+    private record EnCache(BoletinDto boletin, LocalDateTime vence) { }
 
     private final BoletinRepository boletinRepository;
     private final ClientePrediccionIa clienteIa;
-    private final Map<String, BoletinDto> cacheSimulacion = new ConcurrentHashMap<>();
+    private final Map<String, EnCache> cacheSimulacion = new ConcurrentHashMap<>();
 
     public BoletinService(BoletinRepository boletinRepository, ClientePrediccionIa clienteIa) {
         this.boletinRepository = boletinRepository;
@@ -83,17 +87,18 @@ public class BoletinService {
             return null;
         }
         String clave = escenario + "|" + zona.getId() + "|" + claveEstado(nivel, prediccion);
-        BoletinDto enCache = cacheSimulacion.get(clave);
-        if (enCache != null) {
-            return enCache;
+        LocalDateTime ahora = LocalDateTime.now();
+        EnCache enCache = cacheSimulacion.get(clave);
+        if (enCache != null && (enCache.vence() == null || enCache.vence().isAfter(ahora))) {
+            return enCache.boletin();
         }
         return clienteIa.redactarBoletin(datosParaBoletin(zona, nivel, mm, prediccion))
                 .map(b -> {
-                    BoletinDto dto = new BoletinDto(b.texto(), b.fuente(), LocalDateTime.now());
-                    // Solo se guardan en caché los de Gemini: si salió la plantilla, se reintenta luego.
-                    if ("gemini".equals(b.fuente())) {
-                        cacheSimulacion.put(clave, dto);
-                    }
+                    BoletinDto dto = new BoletinDto(b.texto(), b.fuente(), ahora);
+                    // El de Gemini se reutiliza siempre; el de plantilla, unos minutos, y luego se
+                    // reintenta con Gemini (así una clave inválida no genera una llamada cada 5 s).
+                    LocalDateTime vence = "gemini".equals(b.fuente()) ? null : ahora.plus(REINTENTO_PLANTILLA_SIMULACION);
+                    cacheSimulacion.put(clave, new EnCache(dto, vence));
                     return dto;
                 })
                 .orElse(null);
