@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/MiniIdentityApi.Api/MiniIdentityApi.Api.csproj" Id="0051fe30-ae3f-4493-ac5d-cba0d14a7150" />
+  <Project Path="src/MiniIdentityApi.Application/MiniIdentityApi.Application.csproj" Id="ec8bd6c7-de71-4176-b33d-e376e3fb6435" />
+  <Project Path="src/MiniIdentityApi.Domain/MiniIdentityApi.Domain.csproj" Id="e2667a6b-45e3-40ff-9cd0-952b9a72cd14" />
+  <Project Path="src/MiniIdentityApi.Infrastructure/MiniIdentityApi.Infrastructure.csproj" Id="8cc402c7-560a-4054-a115-f5f62e91bfba" />
+  <Project Path="src/MiniIdentityApi.Tests/MiniIdentityApi.Tests.csproj" Id="cfebe469-b5dd-4c7d-b0d1-b61cb1563d0d" />
+</Solution>

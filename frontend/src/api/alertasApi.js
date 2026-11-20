@@ -20,6 +20,8 @@
 //   - sin definir → automático: solo cae al mock si el servicio NO está corriendo.
 //     Si el servicio responde un 502 propio (falló la fuente externa), se muestra el
 //     error en pantalla en lugar de taparlo con datos de demostración.
+//   - Mientras esté en el mock se reintenta el servicio cada 15 segundos y se vuelve
+//     a datos reales solo, sin necesidad de pulsar "Reintentar".
 
 import { apiFetch } from './apiClient'
 import * as mock from './alertasMock'
@@ -32,13 +34,37 @@ export const mockForzado = CONFIGURADO === 'true'
 
 let usandoMock = mockForzado
 let avisoMostrado = false
+let reintentoTimer = null
+
+const RETRASO_REINTENTO_MS = 15000
 
 function avisar(motivo) {
   if (avisoMostrado) return
   avisoMostrado = true
   console.warn(
-    `[alertasApi] ${motivo}. Se usan datos de demostración; cuando el servicio esté corriendo, pulsa "Reintentar" o recarga la página.`,
+    `[alertasApi] ${motivo}. Se usan datos de demostración; se reintenta solo cada ${RETRASO_REINTENTO_MS / 1000} s, o pulsa "Reintentar" para forzarlo.`,
   )
+}
+
+// Mientras se sirven datos de demostración se reintenta el servicio real en segundo
+// plano. Si contesta con éxito, el sistema vuelve solo a datos reales: el chip se
+// oculta en el siguiente refresco (5 s) de las pantallas, sin pulsar "Reintentar".
+function programarReintentoAutomatico() {
+  if (reintentoTimer || mockForzado || CONFIGURADO === 'false') return
+  reintentoTimer = setTimeout(reintentarServicioReal, RETRASO_REINTENTO_MS)
+}
+
+async function reintentarServicioReal() {
+  reintentoTimer = null
+  if (!usandoMock || mockForzado) return
+  try {
+    await apiFetch(`${BASE}/alertas`)
+    usandoMock = false
+    avisoMostrado = false
+    console.info('[alertasApi] alertas-service disponible de nuevo: se usan datos reales.')
+  } catch {
+    programarReintentoAutomatico()
+  }
 }
 
 function servicioCaido(e) {
@@ -58,6 +84,7 @@ async function ejecutar(llamarServicio, llamadaDemo) {
     if (CONFIGURADO === 'false' || !servicioCaido(e)) throw e
     usandoMock = true
     avisar('El alertas-service no responde')
+    programarReintentoAutomatico()
     return llamadaDemo()
   }
 }
@@ -97,6 +124,32 @@ export const enModoDemostracion = () => usandoMock
 
 // Vuelve a intentar contra el servicio real (no hace nada si el mock está forzado).
 export function reconectarServidor() {
+  if (reintentoTimer) {
+    clearTimeout(reintentoTimer)
+    reintentoTimer = null
+  }
   usandoMock = mockForzado
   avisoMostrado = false
 }
+
+// ---------------------------------------------------------------------------
+// CRUD de zonas. Siempre va contra el alertas-service real: el modo demostración
+// no gestiona zonas (sus datos viven solo en memoria en el navegador).
+// ---------------------------------------------------------------------------
+
+export const getZonas = () => apiFetch(`${BASE}/zonas`)
+
+export const crearZona = (zona) =>
+  apiFetch(`${BASE}/zonas`, {
+    method: 'POST',
+    body: JSON.stringify(zona),
+  })
+
+export const actualizarZona = (id, zona) =>
+  apiFetch(`${BASE}/zonas/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(zona),
+  })
+
+export const eliminarZona = (id) =>
+  apiFetch(`${BASE}/zonas/${id}`, { method: 'DELETE' })

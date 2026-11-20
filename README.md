@@ -1,6 +1,6 @@
 # Sistema de Alertas Tempranas de Crecientes — Villavicencio
 
-* **Asignatura:** Teleco 1 · Parcial I · 2026-II
+* **Asignatura:** Teleco 1 · Proyecto final · 2026-II
 * **Institución:** Universidad de los Llanos (FCBI, Ingeniería de Sistemas)
 
 ## Integrantes
@@ -18,8 +18,8 @@
 | Componente | Tecnología | Puerto | Dónde está |
 |---|---|---|---|
 | Frontend | React + Vite | 5173 | `frontend/` |
-| API de autenticación | ASP.NET Core (.NET 10) | 5132 | Repositorio del docente: [mini-identity-api-dotnet](https://github.com/wolfcor10/mini-identity-api-dotnet) (se usa sin modificar) |
-| Microservicio de alertas | Java + Spring Boot, H2 en memoria | 8081 | `alertas-service/` |
+| API de autenticación | ASP.NET Core (.NET 10) + EF Core/PostgreSQL | 5132 | `auth-service/` (basada en [mini-identity-api-dotnet](https://github.com/wolfcor10/mini-identity-api-dotnet), con persistencia y CRUD agregados) |
+| Microservicio de alertas | Java + Spring Boot, PostgreSQL | 8081 | `alertas-service/` |
  
 Toda la comunicación es HTTP/REST con JSON. El navegador solo habla con el frontend (puerto 5173) y el proxy de Vite reenvía las llamadas, así que no hay problemas de CORS en desarrollo:
  
@@ -34,11 +34,14 @@ Más detalle en `docs/infraestructura.md`, `docs/aplicacion.md` y `docs/modelo-d
  
 ```
 SisAlert/
-├── frontend/          React + Vite (login, tablero, alertas)
-├── alertas-service/   Spring Boot (zonas, lecturas, alertas, umbrales)
+├── frontend/          React + Vite (login, tablero, alertas, zonas)
+├── alertas-service/   Spring Boot (zonas, lecturas, alertas, umbrales, CRUD de zonas)
+├── auth-service/      ASP.NET Core (.NET 10) con EF Core (usuarios, roles, permisos)
 ├── docs/              Diagramas de infraestructura, aplicación y datos
 └── README.md
 ```
+
+Ambos servicios comparten la misma instancia de PostgreSQL (`sisalert`) pero cada uno es dueño de sus tablas: `zona`, `lectura`, `alerta` para alertas; `usuarios`, `roles`, `permisos` y sus tablas puente para identidad.
  
 ## Requisitos
  
@@ -48,6 +51,7 @@ SisAlert/
 | .NET SDK | 10 | API de autenticación |
 | JDK | 17 o superior | Microservicio de alertas (Maven va incluido con `mvnw`) |
 | Node.js | 20 o superior | Frontend |
+| Docker | reciente (opcional) | Contenedor de PostgreSQL (y despliegue con compose) |
  
 Comprobar versiones:
  
@@ -60,37 +64,62 @@ node -v
  
 ## Cómo levantar todo
  
-Se necesitan **tres terminales**, una por componente, y conviene arrancarlos en este orden.
+Se necesitan **tres terminales**, una por componente, más el contenedor de PostgreSQL. Conviene arrancarlos en este orden.
  
 ### 1. API de autenticación (terminal 1)
- 
+
+El proyecto ya está integrado en `auth-service/` (no hay que clonar nada aparte). Usa la misma base PostgreSQL que el microservicio de alertas y guarda usuarios, roles y permisos en tablas propias mediante EF Core.
+
 ```bash
-git clone https://github.com/wolfcor10/mini-identity-api-dotnet.git
-cd mini-identity-api-dotnet/src/MiniIdentityApi.Api
+cd SisAlert/auth-service/src/MiniIdentityApi.Api
 dotnet run --launch-profile http
 ```
- 
+
 Queda escuchando en `http://localhost:5132`. Swagger está en `http://localhost:5132/swagger`.
- 
-Trae un usuario creado al arrancar:
- 
-| Usuario | Contraseña |
-|---|---|
-| `admin` | `Admin123*` |
- 
-Los usuarios viven en memoria: si se reinicia la API, los que se hayan registrado desde la pantalla de registro se pierden y hay que crearlos de nuevo.
+
+La cadena de conexión se toma de `ConnectionStrings:Identity` y se puede sobrescribir con la variable de entorno `ConnectionStrings__Identity`:
+
+```powershell
+$env:ConnectionStrings__Identity = "Host=localhost;Port=5432;Database=sisalert;Username=sisalert;Password=sisalert"
+```
+
+Al arrancar aplica sus migraciones de EF Core y crea el usuario inicial si no existe:
+
+| Usuario | Contraseña | Rol |
+|---|---|---|
+| `admin` | `Admin123*` | Admin |
+
+Los usuarios registrados desde la pantalla de registro **ya no se pierden** al reiniciar: quedan en PostgreSQL. Las contraseñas se almacenan con hash y sal, nunca en texto plano.
  
 ### 2. Microservicio de alertas (terminal 2)
- 
+
+El servicio necesita PostgreSQL. La forma más rápida de tenerlo es un contenedor:
+
+```bash
+docker run -d --name sisalert-db --restart unless-stopped \
+  -e POSTGRES_DB=sisalert -e POSTGRES_USER=sisalert -e POSTGRES_PASSWORD=sisalert \
+  -p 5432:5432 -v sisalert-pgdata:/var/lib/postgresql/data postgres:16-alpine
+```
+
+Si el contenedor ya existe pero está detenido: `docker start sisalert-db`. Los datos viven en el volumen `sisalert-pgdata` y sobreviven a reinicios del contenedor y del servicio. El esquema lo crea y versiona Flyway al arrancar (`alertas-service/src/main/resources/db/migration`).
+
+La conexión se configura con variables de entorno (los valores por defecto son los del comando anterior):
+
+| Variable | Valor por defecto |
+|---|---|
+| `DB_URL` | `jdbc:postgresql://localhost:5432/sisalert` |
+| `DB_USER` | `sisalert` |
+| `DB_PASSWORD` | `sisalert` |
+
 ```bash
 cd SisAlert/alertas-service
 ./mvnw spring-boot:run          # Linux / macOS
 mvnw.cmd spring-boot:run        # Windows
 ```
- 
-Queda escuchando en `http://localhost:8081`. Al arrancar carga las zonas de riesgo en H2 (en memoria, se reinician con el servicio); las zonas empiezan sin lecturas hasta que se sincroniza.
 
-Las pruebas unitarias se corren con `./mvnw test` (en Windows, `mvnw.cmd test`). La consola de H2 está en `http://localhost:8081/h2-console` con JDBC URL `jdbc:h2:mem:alertasdb`, usuario `sa` y sin contraseña.
+Queda escuchando en `http://localhost:8081`. La primera vez siembra las tres zonas de riesgo; en arranques posteriores conserva zonas, lecturas y alertas. Las zonas empiezan sin lecturas hasta que se sincroniza.
+
+Las pruebas unitarias se corren con `./mvnw test` (en Windows, `mvnw.cmd test`) y usan H2 en memoria, así que no necesitan PostgreSQL.
 
 La fuente de datos se elige en `application.properties` con `alertas.fuente`:
 
@@ -119,16 +148,38 @@ Recorrido de la demostración:
 1. **Tablero** (`/estaciones`): una tarjeta por zona. Al arrancar todas aparecen en gris como "Sin datos".
 2. Botón **Sincronizar lecturas**: el microservicio consulta la fuente de datos, guarda las lecturas y recalcula el nivel de cada zona (verde, amarillo o rojo).
 3. **Alertas** (`/alertas`): solo las zonas en precaución o peligro, la más grave primero.
+4. **Zonas** (`/zonas`): crear, editar y eliminar zonas de riesgo. Al eliminar una zona se borran en cascada sus lecturas y alertas.
 
 ## Endpoints del microservicio de alertas
 
 | Método | Ruta | Qué hace |
 |---|---|---|
-| GET | `/api/zonas` | Lista de zonas de riesgo |
+| GET | `/api/zonas` | Lista de zonas de riesgo (incluye `codigoEstacion`) |
+| GET | `/api/zonas/{id}` | Una zona por id |
+| POST | `/api/zonas` | Crea una zona (`nombre`, `cuerpoAgua`, `comunidades`, `codigoEstacion`) |
+| PUT | `/api/zonas/{id}` | Actualiza una zona |
+| DELETE | `/api/zonas/{id}` | Elimina la zona y, en cascada, sus lecturas y alertas |
 | GET | `/api/alertas` | Una entrada por zona con su alerta vigente (`nivel` en `null` si aún no hay lecturas) |
 | POST | `/api/lecturas/sincronizar` | Consulta la fuente externa, guarda las lecturas y recalcula las alertas; devuelve lo mismo que `GET /api/alertas` |
 
-Los niveles son `NORMAL`, `PRECAUCION` y `PELIGRO`. Si la fuente externa falla, `sincronizar` responde `502` con `{"error":"FUENTE_EXTERNA_NO_DISPONIBLE","mensaje":"..."}` y no cambia ninguna alerta. El detalle de cada respuesta está en `docs/aplicacion.md` §5.
+Los niveles son `NORMAL`, `PRECAUCION` y `PELIGRO`. Si la fuente externa falla, `sincronizar` responde `502` con `{"error":"FUENTE_EXTERNA_NO_DISPONIBLE","mensaje":"..."}` y no cambia ninguna alerta. Los errores de validación responden `400`, los recursos inexistentes `404` y los duplicados `409`, siempre con `{"error":"CODIGO","mensaje":"texto"}`. El detalle de cada respuesta está en `docs/aplicacion.md` §5.
+
+## Endpoints de la API de identidad
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| POST | `/api/auth/register` | Registra un usuario |
+| POST | `/api/auth/login` | Valida credenciales y devuelve el JWT |
+| GET | `/api/users` | Lista usuarios (solo Admin) |
+| GET | `/api/users/{id}` | Consulta un usuario |
+| PUT | `/api/users/{id}` | Edita nombre de usuario y correo (solo Admin) |
+| DELETE | `/api/users/{id}` | Elimina un usuario; protege al último administrador (solo Admin) |
+| PATCH | `/api/users/{id}/activate` \| `/deactivate` | Activa o desactiva un usuario (solo Admin) |
+| POST | `/api/users/{id}/roles` | Asigna un rol (solo Admin) |
+| GET | `/api/roles` | Lista roles (solo Admin) |
+| POST | `/api/roles` | Crea un rol (solo Admin) |
+
+Los endpoints protegidos exigen `Authorization: Bearer <token>` y rol `Admin` cuando se indica.
 
 ## Comprobación rápida desde la terminal
 
@@ -162,7 +213,9 @@ Para la sustentación se usa `VITE_MOCK_ALERTAS=false`, así queda claro que los
 | Síntoma | Causa probable | Solución |
 |---|---|---|
 | "No se pudo conectar con el servidor" al iniciar sesión | La API de autenticación no está corriendo o está en otro puerto | Revisar la terminal 1 y que diga `http://localhost:5132` |
-| "Usuario o contraseña incorrectos" con un usuario recién creado | Se reinició la API y se borró de la memoria | Registrarlo otra vez o usar `admin` |
+| "Usuario o contraseña incorrectos" | Credenciales inválidas o usuario desactivado | Revisar el usuario en Swagger (`/api/users`) o usar `admin` |
+| "No se pudo conectar con la base de datos" | PostgreSQL no está corriendo | `docker start sisalert-db` o revisar `DB_URL` / `ConnectionStrings__Identity` |
+| El microservicio no arranca con `Flyway` o `EF Core` | Migraciones pendientes o base mal apuntada | Revisar el log; ambos aplican migraciones solos al arrancar |
 | El tablero muestra el aviso de modo demostración | El microservicio de alertas no responde en 8081 | Revisar la terminal 2 y pulsar **Reintentar** |
 | Todas las zonas aparecen en "Sin datos" | Todavía no se ha sincronizado | Pulsar **Sincronizar lecturas** en el tablero |
 | "No fue posible consultar la fuente de datos meteorológicos" al sincronizar | La fuente externa no respondió (502) | Revisar la conexión; las alertas anteriores se conservan |

@@ -1,7 +1,7 @@
 # Diseño de aplicación
 
 **Proyecto:** Sistema de Alertas Tempranas de Crecientes — Villavicencio
-**Asignatura:** Telemática 1 · Parcial I · 2026-II · Universidad de los Llanos
+**Asignatura:** Telemática 1 · Proyecto final · 2026-II · Universidad de los Llanos
 **Ubicación en el repositorio:** `docs/aplicacion.md`
 
 ---
@@ -48,7 +48,7 @@ Una zona que aún no tiene lecturas se muestra como "Sin datos" en gris. No es u
 - Histórico y estadísticas de lluvias.
 - Actualización automática programada.
 
-Estos puntos pueden formar parte de la entrega final del curso, pero no del parcial.
+Estos puntos pueden formar parte de una siguiente iteración del proyecto, pero no del alcance actual del MVP.
 
 ---
 
@@ -64,6 +64,7 @@ Tecnología: React con Vite. El frontend solo presenta información y llama a lo
 | Registro | `/registro` | Público | Crea un usuario en la API de autenticación |
 | Tablero | `/estaciones` | Solo con sesión iniciada | Una tarjeta por zona con su nivel y el botón "Sincronizar lecturas" (CU-02 y CU-03) |
 | Alertas | `/alertas` | Solo con sesión iniciada | Solo las zonas en `PRECAUCION` o `PELIGRO`, la más grave primero (CU-02) |
+| Zonas | `/zonas` | Solo con sesión iniciada | CRUD de zonas de riesgo: crear, editar y eliminar |
 
 La barra superior (`Layout`) muestra el usuario y el botón "Salir" en las pantallas con sesión. Cualquier otra ruta redirige a `/estaciones`, y `RutaProtegida` envía a `/login` si no hay sesión.
 
@@ -90,6 +91,14 @@ La barra superior (`Layout`) muestra el usuario y el botón "Salir" en las panta
 1. Usa la misma consulta del tablero y filtra en el navegador las zonas en `PRECAUCION` o `PELIGRO`.
 2. Si ninguna zona está en riesgo, lo dice; si aún no hay lecturas, indica que se sincronice desde el tablero.
 
+**Zonas**
+
+1. Lista las zonas con su cuerpo de agua, comunidades y código de estación.
+2. El formulario sirve para crear una zona o editar la seleccionada con "Editar".
+3. Al guardar, el servicio valida campos obligatorios, nombre y estación únicos; responde `400` o `409` con un mensaje legible.
+4. "Eliminar" pide confirmación y borra en cascada las lecturas y alertas de la zona.
+5. Los cambios se guardan en PostgreSQL y sobreviven a reinicios.
+
 Estados que manejan las pantallas:
 
 | Estado | Qué se muestra |
@@ -108,7 +117,8 @@ frontend/src/
 │   ├── LoginPage.jsx
 │   ├── RegistroPage.jsx
 │   ├── EstacionesPage.jsx    # Tablero de zonas y botón "Sincronizar lecturas"
-│   └── AlertasPage.jsx       # Zonas en precaución o peligro
+│   ├── AlertasPage.jsx       # Zonas en precaución o peligro
+│   └── ZonasPage.jsx         # CRUD de zonas de riesgo
 ├── components/
 │   ├── Layout.jsx            # Barra superior con usuario y "Salir"
 │   ├── RutaProtegida.jsx     # Redirige a /login si no hay token
@@ -153,17 +163,17 @@ Gracias al proxy descrito en el documento de infraestructura, el navegador solo 
 
 ## 4. Microservicio de alertas
 
-Tecnología: Java con Spring Boot, Spring Web, Spring Data JPA y H2 en memoria. Es el servicio de dominio del proyecto.
+Tecnología: Java con Spring Boot, Spring Web, Spring Data JPA y PostgreSQL. Es el servicio de dominio del proyecto.
 
 ### 4.1 Capas
 
 ```mermaid
 flowchart TB
     C["Controller<br/>recibe y responde REST"] --> S["Service<br/>orquesta la lógica"]
-    S --> R["Repository<br/>acceso a H2"]
+    S --> R["Repository<br/>acceso a PostgreSQL"]
     S --> K["Cliente de datos externos<br/>consulta la fuente meteorológica"]
     S --> U["Regla de umbral<br/>convierte mm de lluvia en nivel"]
-    R --> H[("H2 en memoria")]
+    R --> H[("PostgreSQL")]
     K --> E["Fuente externa"]
 ```
 
@@ -171,7 +181,7 @@ flowchart TB
 |---|---|---|
 | Controller | Recibir peticiones HTTP, validar lo básico y devolver JSON con el código HTTP correcto | Contener lógica de negocio ni acceder a la base de datos |
 | Service | Coordinar el proceso: pedir datos, evaluar el nivel, guardar lecturas y alertas | Conocer detalles de HTTP ni del formato de la fuente externa |
-| Repository | Leer y escribir en H2 | Tomar decisiones de negocio |
+| Repository | Leer y escribir en PostgreSQL | Tomar decisiones de negocio |
 | Cliente de datos externos | Consultar la fuente meteorológica y traducir su respuesta al modelo propio | Guardar datos |
 | Regla de umbral | Convertir la precipitación en un nivel de alerta | Consultar bases de datos o servicios |
 
@@ -195,7 +205,7 @@ Que el cliente de datos externos sea una **interfaz** permite cambiar de fuente 
 
 ### 4.3 Datos iniciales
 
-Al arrancar, el servicio carga las tres zonas reales de riesgo en H2 a través de `CargaInicial`:
+Al arrancar, el servicio carga las tres zonas reales de riesgo en PostgreSQL a través de `CargaInicial` (solo si la tabla está vacía):
 
 | Zona | Estación IDEAM | Código | Cuerpos de agua | Comunidades (POMCA) |
 |---|---|---|---|---|
@@ -214,6 +224,10 @@ Todos los endpoints devuelven JSON. Prefijo común: `/api`.
 | Método | Ruta | Descripción | Caso de uso |
 |---|---|---|---|
 | GET | `/api/zonas` | Lista de zonas de riesgo | Apoyo a CU-02 |
+| GET | `/api/zonas/{id}` | Una zona por id | CRUD |
+| POST | `/api/zonas` | Crea una zona | CRUD |
+| PUT | `/api/zonas/{id}` | Actualiza una zona | CRUD |
+| DELETE | `/api/zonas/{id}` | Elimina una zona y sus lecturas/alertas en cascada | CRUD |
 | GET | `/api/alertas` | Alerta vigente de cada zona | CU-02 |
 | POST | `/api/lecturas/sincronizar` | Consulta la fuente externa, guarda lecturas y regenera alertas | CU-03 |
 
@@ -227,7 +241,8 @@ Respuesta `200 OK`:
     "id": 1,
     "nombre": "Zona de ejemplo 1",
     "cuerpoAgua": "Caño de ejemplo",
-    "comunidades": "Barrio A, Barrio B"
+    "comunidades": "Barrio A, Barrio B",
+    "codigoEstacion": "0035035100"
   }
 ]
 ```
@@ -270,6 +285,30 @@ Respuesta de error:
   "mensaje": "No fue posible consultar la fuente de datos meteorológicos."
 }
 ```
+
+### 5.4 CRUD de zonas
+
+`POST /api/zonas` y `PUT /api/zonas/{id}` reciben:
+
+```json
+{
+  "nombre": "Zona Guatiquía Norte",
+  "cuerpoAgua": "Río Guatiquía · Caño Parrado",
+  "comunidades": "Barzal Alto, Siete de Agosto",
+  "codigoEstacion": "0035035100"
+}
+```
+
+| Código | Cuándo |
+|---|---|
+| `201 Created` | Zona creada; devuelve la zona con su `id` |
+| `200 OK` | Zona actualizada |
+| `204 No Content` | Zona eliminada (lecturas y alertas en cascada) |
+| `400 Bad Request` | Campo vacío o demasiado largo; `{"error":"SOLICITUD_INVALIDA","mensaje":"..."}` |
+| `404 Not Found` | El id no existe; `{"error":"NO_ENCONTRADO","mensaje":"..."}` |
+| `409 Conflict` | Nombre o código de estación duplicado; `{"error":"CONFLICTO","mensaje":"..."}` |
+
+Los datos se guardan en PostgreSQL y sobreviven a reinicios del servicio.
 
 ---
 
@@ -366,7 +405,7 @@ Si la fuente externa falla antes de terminar, no se modifica ninguna alerta y se
 | Arquitectura por capas en el microservicio | Es un patrón conocido, fácil de explicar y de probar |
 | Cliente de datos externos como interfaz | Permite cambiar la fuente de datos sin reescribir el servicio |
 | Umbrales en configuración | Se ajustan sin recompilar |
-| Una sola regla, basada en lluvia acumulada | Suficiente para demostrar la funcionalidad; evita complejidad innecesaria en el parcial |
+| Una sola regla, basada en lluvia acumulada | Suficiente para demostrar la funcionalidad; evita complejidad innecesaria en el MVP |
 | Sincronización bajo demanda con un botón | Hace visible el flujo del segundo servicio durante la demostración |
 | Código `502` para fallas de la fuente externa | Distingue un fallo del proveedor de datos de un fallo del propio servicio |
 
