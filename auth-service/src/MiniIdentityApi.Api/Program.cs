@@ -40,10 +40,12 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// Persistencia: PostgreSQL, tablas propias dentro de la misma base "sisalert".
-// La cadena se puede sobrescribir con la variable de entorno ConnectionStrings__Identity.
+// Persistencia: PostgreSQL, esquema propio dentro de la base "sisalert".
+// En desarrollo la cadena viene de appsettings.Development.json; en producción de la
+// variable de entorno ConnectionStrings__Identity. Sin ella el servicio no arranca.
 var connectionString = builder.Configuration.GetConnectionString("Identity")
-    ?? "Host=localhost;Port=5432;Database=sisalert;Username=sisalert;Password=sisalert";
+    ?? throw new InvalidOperationException(
+        "Falta la cadena de conexión: defina la variable de entorno ConnectionStrings__Identity.");
 
 builder.Services.AddDbContext<IdentityDbContext>(options => options.UseNpgsql(connectionString,
         npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", IdentityDbContext.EsquemaHistorial)));
@@ -58,8 +60,14 @@ builder.Services.AddScoped<AuthorizationService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<RoleService>();
 
+// La clave de firma nunca va en appsettings.json: en producción llega por la variable de
+// entorno Jwt__Key (desde Key Vault). HS256 exige al menos 256 bits (32 bytes).
 var jwtKey = builder.Configuration["Jwt:Key"]
-    ?? throw new InvalidOperationException("Jwt:Key is missing in configuration.");
+    ?? throw new InvalidOperationException("Falta la clave JWT: defina la variable de entorno Jwt__Key.");
+if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
+{
+    throw new InvalidOperationException("La clave JWT (Jwt__Key) debe tener al menos 32 caracteres.");
+}
 
 var jwtIssuer = builder.Configuration["Jwt:Issuer"]
     ?? throw new InvalidOperationException("Jwt:Issuer is missing in configuration.");
@@ -116,8 +124,18 @@ using (var scope = app.Services.CreateScope())
     var adminUser = userRepository.FindByUsernameOrEmail("admin");
     if (adminUser is null)
     {
+        // La contraseña inicial del administrador no está en el código: en desarrollo viene de
+        // appsettings.Development.json y en producción de la variable Seed__AdminPassword.
+        // Solo se usa la primera vez, cuando el usuario admin todavía no existe.
+        var adminPassword = builder.Configuration["Seed:AdminPassword"];
+        if (string.IsNullOrWhiteSpace(adminPassword))
+        {
+            throw new InvalidOperationException(
+                "No existe el usuario admin y falta su contraseña inicial: defina Seed__AdminPassword.");
+        }
+
         var salt = passwordHasher.GenerateSalt();
-        var hash = passwordHasher.Hash("Admin123*", salt);
+        var hash = passwordHasher.Hash(adminPassword, salt);
 
         var credential = new Credential(hash, salt);
         adminUser = new User("admin", "admin@example.com", credential);

@@ -7,7 +7,11 @@ build/
 # Node / Frontend
 node_modules/
 dist/
+
+# Variables de entorno con valores reales (solo se sube la plantilla)
 .env
+.env.*
+!.env.example
 
 # IDEs y Editores
 .vscode/
