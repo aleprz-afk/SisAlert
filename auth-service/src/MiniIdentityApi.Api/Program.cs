@@ -51,8 +51,16 @@ var connectionString = builder.Configuration.GetConnectionString("Identity")
     ?? throw new InvalidOperationException(
         "Falta la cadena de conexión: defina la variable de entorno ConnectionStrings__Identity.");
 
+// Esquema de la tabla de historial de migraciones: "public" por compatibilidad con las bases
+// locales existentes; en una base nueva con usuarios por servicio (infra/db) se usa "identidad"
+// con Persistencia__EsquemaHistorial=identidad, porque ese usuario no puede escribir en "public".
+var esquemaHistorial = builder.Configuration["Persistencia:EsquemaHistorial"] ?? IdentityDbContext.EsquemaHistorial;
+
 builder.Services.AddDbContext<IdentityDbContext>(options => options.UseNpgsql(connectionString,
-        npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", IdentityDbContext.EsquemaHistorial)));
+        npgsql => npgsql
+            .MigrationsHistoryTable("__EFMigrationsHistory", esquemaHistorial)
+            // Reintenta ante cortes transitorios de red, frecuentes con bases en la nube.
+            .EnableRetryOnFailure(maxRetryCount: 3)));
 
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<IRoleRepository, EfRoleRepository>();

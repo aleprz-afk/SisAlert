@@ -1,6 +1,7 @@
 package co.edu.unillanos.sisalert.alertas.config;
 
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;
@@ -34,6 +35,19 @@ public class VerificadorVariablesProduccion implements EnvironmentPostProcessor,
         if (!faltantes.isEmpty()) {
             throw new IllegalStateException(
                     "Perfil prod: faltan variables de entorno obligatorias: " + String.join(", ", faltantes));
+        }
+
+        // La base en la nube viaja por Internet: sin SSL las credenciales y los datos irían
+        // en texto plano. Solo se permite sin SSL si se pide de forma explícita (por ejemplo,
+        // un Docker Compose local donde la base está en la misma red privada).
+        String url = environment.getProperty("DB_URL", "").toLowerCase(Locale.ROOT);
+        boolean conSsl = url.contains("sslmode=require") || url.contains("sslmode=verify-ca")
+                || url.contains("sslmode=verify-full");
+        boolean sinSslPermitido = Boolean.parseBoolean(environment.getProperty("DB_SSL_OPCIONAL", "false"));
+        if (!conSsl && !sinSslPermitido) {
+            throw new IllegalStateException(
+                    "Perfil prod: DB_URL debe usar SSL (agregar ?sslmode=require). "
+                            + "Solo para una base en red privada se puede definir DB_SSL_OPCIONAL=true.");
         }
     }
 

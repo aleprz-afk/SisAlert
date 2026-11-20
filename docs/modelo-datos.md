@@ -182,6 +182,8 @@ spring.flyway.enabled=true
 
 - El esquema lo crea y versiona **Flyway** con los archivos de `src/main/resources/db/migration` (`V1__esquema_inicial.sql`, `V2__crud_zonas.sql`).
 - Las tablas viven en el esquema de PostgreSQL **`alertas`**; la API de identidad usa el esquema **`identidad`** en la misma base. Ningún servicio lee las tablas del otro.
+- En la nube cada servicio se conecta con su propio usuario (`alertas_app`, `identidad_app`), con permisos solo sobre su esquema (`infra/db/usuarios-por-servicio.sql`), y siempre con SSL.
+- **Retención:** una tarea diaria borra las lecturas de más de 365 días y las alertas no vigentes de más de 730 días; la alerta vigente de cada zona nunca se borra.
 - `ddl-auto=validate` hace que Hibernate solo compruebe que las entidades coincidan con las tablas; nunca las modifica.
 - Las migraciones se aplican solas al arrancar. La tabla `flyway_schema_history` registra la versión aplicada.
 - Las pruebas unitarias usan H2 en memoria (`src/test/resources/application.properties`), así que `mvnw test` no necesita PostgreSQL.
