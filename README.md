@@ -301,6 +301,10 @@ La regla de umbral dice cómo está cada zona **hoy**. El servicio de IA **antic
 
 Ficha completa, con métricas, comparación de modelos y limitaciones: [`docs/ia.md`](docs/ia.md).
 
+## Despliegue en Azure
+
+Con un solo comando, desde un PC con Azure CLI y Docker: `.\infrazure\desplegar.ps1`. Crea toda la infraestructura con Bicep, sube las imágenes, crea los usuarios de la base y publica las apps. La guía paso a paso está en [`infra/azure/README.md`](infra/azure/README.md).
+
 ## Listo para producción (Azure)
 
 | Pieza | Dónde |

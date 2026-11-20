@@ -93,11 +93,16 @@ Todas salen de `.env.example`. Los valores sensibles se configuran como referenc
 - **Apagado ordenado:** Spring termina las peticiones en curso antes de apagarse (`server.shutdown=graceful`), así que los despliegues no cortan sincronizaciones.
 - **Base de datos:** copias automáticas y restauración a un punto en el tiempo, que provee el servicio gestionado.
 
-## 7. Automatización (siguiente paso)
+## 7. Automatización
 
-1. **Docker:** un `Dockerfile` por servicio y `docker-compose.yml` para levantar todo en local con un comando.
-2. **GitHub Actions:** en cada PR, `mvnw test`, `dotnet test`, `pytest`, lint y build. En `main`, construir las imágenes, subirlas a ACR y actualizar los Container Apps.
-3. **Infraestructura como código** (Bicep o Terraform): crea todo lo de este diagrama de forma repetible.
+| Pieza | Dónde | Estado |
+|---|---|---|
+| Imágenes Docker de los 4 servicios y `docker-compose.yml` | `*/Dockerfile`, `docker-compose.yml` | Listo |
+| Integración continua: pruebas, análisis de dependencias e imágenes en cada PR | `.github/workflows/ci.yml` | Listo |
+| **Infraestructura como código**: todo este diagrama en Bicep | `infra/azure/main.bicep` | Listo |
+| Despliegue con un comando: infraestructura, imágenes, usuarios de la base y apps | `infra/azure/desplegar.ps1` (guía en `infra/azure/README.md`) | Listo |
+| Pausar y encender para ahorrar crédito | `infra/azure/pausar.ps1` | Listo |
+| Despliegue automático desde GitHub Actions en cada merge a `main` | — | Siguiente paso (necesita credenciales federadas de la suscripción) |
 
 ## 8. Costo estimado (Azure for Students, USD 100 de crédito)
 
