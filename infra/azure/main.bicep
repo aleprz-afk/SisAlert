@@ -257,6 +257,17 @@ var urlFrontend = 'https://ca-frontend.${entorno.properties.defaultDomain}'
 //    entre apps del mismo entorno; la dirección completa pasa por el balanceador interno, que en
 //    los entornos "Express" responde 404 a las apps internas. El tráfico no sale del entorno.
 //  - Públicos (plan B, serviciosPublicos=true): por su dirección https completa.
+// Ingreso de identidad, alertas e IA.
+//  - Internos: allowInsecure=true para que la llamada por nombre corto (HTTP dentro del entorno)
+//    no se redirija a HTTPS.
+//  - Públicos (plan B): HTTPS obligatorio y SIN la propiedad allowInsecure, porque los entornos
+//    "Express" la rechazan aunque valga false (ExpressAllowInsecureNotSupported).
+func ingresoServicio(publico bool, puerto int) object => union({
+  external: publico
+  targetPort: puerto
+  transport: 'auto'
+}, publico ? {} : { allowInsecure: true })
+
 func urlServicio(publico bool, nombreApp string, fqdn string) string => publico ? 'https://${fqdn}' : 'http://${nombreApp}'
 
 var registro = [
@@ -315,14 +326,7 @@ resource appAuth 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApps) {
   properties: {
     managedEnvironmentId: entorno.id
     configuration: {
-      ingress: {
-        external: serviciosPublicos
-        targetPort: 8080
-        transport: 'auto'
-        // Las llamadas entre apps por nombre corto usan HTTP dentro del entorno; sin esto,
-        // Container Apps las redirigiría a HTTPS. Si el servicio es público (plan B), HTTPS obligatorio.
-        allowInsecure: !serviciosPublicos
-      }
+      ingress: ingresoServicio(serviciosPublicos, 8080)
       registries: registro
       secrets: [
         secreto('identidad-connection', cadenaIdentidad)
@@ -371,14 +375,7 @@ resource appIa 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApps) {
   properties: {
     managedEnvironmentId: entorno.id
     configuration: {
-      ingress: {
-        external: serviciosPublicos
-        targetPort: 8000
-        transport: 'auto'
-        // Las llamadas entre apps por nombre corto usan HTTP dentro del entorno; sin esto,
-        // Container Apps las redirigiría a HTTPS. Si el servicio es público (plan B), HTTPS obligatorio.
-        allowInsecure: !serviciosPublicos
-      }
+      ingress: ingresoServicio(serviciosPublicos, 8000)
       registries: registro
       secrets: secretosIa
     }
@@ -409,14 +406,7 @@ resource appAlertas 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApps
   properties: {
     managedEnvironmentId: entorno.id
     configuration: {
-      ingress: {
-        external: serviciosPublicos
-        targetPort: 8081
-        transport: 'auto'
-        // Las llamadas entre apps por nombre corto usan HTTP dentro del entorno; sin esto,
-        // Container Apps las redirigiría a HTTPS. Si el servicio es público (plan B), HTTPS obligatorio.
-        allowInsecure: !serviciosPublicos
-      }
+      ingress: ingresoServicio(serviciosPublicos, 8081)
       registries: registro
       secrets: [
         secreto('alertas-db-password', alertasDbPassword)
@@ -465,7 +455,8 @@ resource appFrontend 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApp
         external: true
         targetPort: 8080
         transport: 'auto'
-        allowInsecure: false // HTTP se redirige a HTTPS
+        // Sin allowInsecure: por defecto HTTP se redirige a HTTPS (y los entornos Express no
+        // aceptan la propiedad).
       }
       registries: registro
     }
