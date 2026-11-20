@@ -60,7 +60,7 @@ class SincronizacionServiceTest {
         prediccionRepository = mock(PrediccionRiesgoRepository.class);
 
         service = new SincronizacionService(zonaRepository, lecturaRepository, alertaRepository,
-                cliente, regla, alertaService, clienteIa, prediccionRepository);
+                cliente, regla, alertaService, clienteIa, prediccionRepository, mock(BoletinService.class));
     }
 
     private static SerieLluvia serieSeca() {
@@ -142,7 +142,7 @@ class SincronizacionServiceTest {
 
         AlertaDto dtoEsperado = new AlertaDto(
                 1L, "Zona 1", "Río Guatiquía", "Barzal",
-                NivelAlerta.PRECAUCION, "Lluvia acumulada relevante", 55.0, null, null);
+                NivelAlerta.PRECAUCION, "Lluvia acumulada relevante", 55.0, null, null, null);
         when(alertaService.listarVigentes()).thenReturn(List.of(dtoEsperado));
 
         List<AlertaDto> resultado = service.sincronizar();

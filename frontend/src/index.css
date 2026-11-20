@@ -855,3 +855,17 @@ input:focus, select:focus { outline: 2px solid var(--azul); border-color: transp
   font-size: 0.9rem;
 }
 .aviso-simulacion .btn-secundario { margin-left: auto; }
+
+/* ---------- Boletín para la comunidad (IA generativa) ---------- */
+.boletin {
+  background: #fff8e1;
+  border: 1px solid #ffe08a;
+  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.boletin-titulo { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #7a5f00; }
+.boletin-texto { margin: 0; line-height: 1.45; }
+.boletin-fuente { font-size: 0.75rem; color: var(--gris); font-style: italic; }

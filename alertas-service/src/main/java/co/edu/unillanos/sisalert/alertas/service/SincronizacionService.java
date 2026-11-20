@@ -45,6 +45,7 @@ public class SincronizacionService {
     private final AlertaService alertaService;
     private final ClientePrediccionIa clienteIa;
     private final PrediccionRiesgoRepository prediccionRepository;
+    private final BoletinService boletinService;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public SincronizacionService(ZonaRepository zonaRepository,
@@ -54,7 +55,8 @@ public class SincronizacionService {
                                  ReglaDeUmbral regla,
                                  AlertaService alertaService,
                                  ClientePrediccionIa clienteIa,
-                                 PrediccionRiesgoRepository prediccionRepository) {
+                                 PrediccionRiesgoRepository prediccionRepository,
+                                 BoletinService boletinService) {
         this.zonaRepository = zonaRepository;
         this.lecturaRepository = lecturaRepository;
         this.alertaRepository = alertaRepository;
@@ -63,6 +65,7 @@ public class SincronizacionService {
         this.alertaService = alertaService;
         this.clienteIa = clienteIa;
         this.prediccionRepository = prediccionRepository;
+        this.boletinService = boletinService;
     }
 
     /**
@@ -101,6 +104,9 @@ public class SincronizacionService {
 
             m.prediccion().ifPresent(p -> prediccionRepository.save(new PrediccionRiesgo(
                     m.zona(), ahora, p.probabilidad(), p.riesgo(), factoresJson(p), p.versionModelo())));
+
+            // Boletín para la comunidad: solo se pide uno nuevo si cambió el estado de la zona.
+            boletinService.actualizar(m.zona(), nivel, m.mm(), m.prediccion().orElse(null), ahora);
         }
         return alertaService.listarVigentes();
     }

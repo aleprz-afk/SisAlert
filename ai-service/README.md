@@ -23,6 +23,7 @@ python -m venv .venv
 | GET | `/health` | Estado y versión del modelo |
 | GET | `/modelo` | Ficha del modelo: datos, bandas de riesgo y métricas |
 | POST | `/predict` | Predicción para una zona |
+| POST | `/boletin` | Boletín en lenguaje sencillo para las comunidades de una zona en alerta (Gemini o plantilla) |
 
 Ejemplo de `POST /predict`:
 
@@ -58,6 +59,8 @@ Los errores responden con `{"error": "CODIGO", "mensaje": "texto"}`, igual que e
 |---|---|
 | `AI_API_KEY` | Si se define, `/predict` exige el encabezado `X-Api-Key` con ese valor. alertas-service lo envía con su propia `AI_API_KEY` |
 | `AI_MODELO_PATH` | Ruta del modelo. Por defecto `modelo/modelo.joblib` |
+| `GEMINI_API_KEY` | Clave de Google AI Studio para redactar los boletines. Sin ella se usa una plantilla fija |
+| `GEMINI_MODEL` | Modelo de Gemini. Por defecto `gemini-flash-lite-latest` |
 
 En Azure el contenedor de IA es **interno**: solo alertas-service lo alcanza y no recibe tráfico de Internet.
 
@@ -67,7 +70,7 @@ En Azure el contenedor de IA es **interno**: solo alertas-service lo alcanza y n
 .\.venv\Scripts\pip install -r requirements-dev.txt
 .\.venv\Scripts\python -m training.descargar_datos   # crea data/ (no se sube al repositorio)
 .\.venv\Scripts\python -m training.entrenar           # crea modelo/modelo.joblib y modelo/metricas.json
-.\.venv\Scripts\python -m pytest                      # 11 pruebas
+.\.venv\Scripts\python -m pytest                      # 16 pruebas
 ```
 
 `modelo/modelo.joblib` (unos 5 KB) sí se sube al repositorio. Así el servicio arranca sin reentrenar y queda versionado junto con el código que lo usa. `scikit-learn` y `numpy` deben ser las mismas versiones de `requirements.txt` con las que se entrenó.

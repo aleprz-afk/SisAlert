@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import ChipModoDemo from '../components/ChipModoDemo'
 import MapaVillavicencio from '../components/MapaVillavicencio'
 import ModalHistoricoZona from '../components/ModalHistoricoZona'
+import Boletin from '../components/Boletin'
 import RiesgoIa from '../components/RiesgoIa'
 import { getAlertas, sincronizar } from '../api/alertasApi'
 import { useAuth } from '../context/useAuth'
@@ -148,6 +149,7 @@ export default function EstacionesPage() {
               </div>
 
               <RiesgoIa riesgoIa={z.riesgoIa} />
+              <Boletin boletin={z.boletin} />
 
               <p className="alerta-meta">Comunidades: {z.comunidades}</p>
 

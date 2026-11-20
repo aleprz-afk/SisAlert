@@ -29,6 +29,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 public class ClientePrediccionIa {
 
     private static final Logger log = LoggerFactory.getLogger(ClientePrediccionIa.class);
+    private static final Duration TIMEOUT_BOLETIN = Duration.ofSeconds(12);
 
     private final String url;
     private final String apiKey;
@@ -63,17 +64,28 @@ public class ClientePrediccionIa {
     }
 
     public Optional<PrediccionIa> predecir(SerieLluvia serie) {
+        Map<String, Object> cuerpo = new LinkedHashMap<>();
+        cuerpo.put("serieHorariaMm", serie.pasadasMm());
+        cuerpo.put("pronosticoHorarioMm", serie.pronosticoMm());
+        cuerpo.put("fechaHora", serie.horaActual().toString());
+        return enviar("/predict", cuerpo, timeout, PrediccionIa.class);
+    }
+
+    /**
+     * Boletín para la comunidad (Gemini o plantilla, lo decide ai-service). Se le da más tiempo
+     * que a la predicción porque incluye la llamada a Gemini.
+     */
+    public Optional<BoletinIa> redactarBoletin(Map<String, Object> datos) {
+        return enviar("/boletin", datos, TIMEOUT_BOLETIN, BoletinIa.class);
+    }
+
+    private <T> Optional<T> enviar(String ruta, Object cuerpo, Duration limite, Class<T> tipo) {
         if (!habilitado()) {
             return Optional.empty();
         }
         try {
-            Map<String, Object> cuerpo = new LinkedHashMap<>();
-            cuerpo.put("serieHorariaMm", serie.pasadasMm());
-            cuerpo.put("pronosticoHorarioMm", serie.pronosticoMm());
-            cuerpo.put("fechaHora", serie.horaActual().toString());
-
-            HttpRequest.Builder peticion = HttpRequest.newBuilder(URI.create(url + "/predict"))
-                    .timeout(timeout)
+            HttpRequest.Builder peticion = HttpRequest.newBuilder(URI.create(url + ruta))
+                    .timeout(limite)
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(cuerpo)));
             if (!apiKey.isEmpty()) {
@@ -82,15 +94,15 @@ public class ClientePrediccionIa {
 
             HttpResponse<String> respuesta = http.send(peticion.build(), HttpResponse.BodyHandlers.ofString());
             if (respuesta.statusCode() != 200) {
-                log.warn("El servicio de IA respondió HTTP {}: {}", respuesta.statusCode(), respuesta.body());
+                log.warn("El servicio de IA respondió HTTP {} en {}: {}", respuesta.statusCode(), ruta, respuesta.body());
                 return Optional.empty();
             }
-            return Optional.of(mapper.readValue(respuesta.body(), PrediccionIa.class));
+            return Optional.of(mapper.readValue(respuesta.body(), tipo));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return Optional.empty();
         } catch (Exception e) {
-            log.warn("No fue posible consultar el servicio de IA: {}", e.getMessage());
+            log.warn("No fue posible consultar el servicio de IA ({}): {}", ruta, e.getMessage());
             return Optional.empty();
         }
     }

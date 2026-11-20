@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import ChipModoDemo from '../components/ChipModoDemo'
 import { getAlertas } from '../api/alertasApi'
 import { useSimulacion } from '../context/useSimulacion'
+import Boletin from '../components/Boletin'
 import RiesgoIa from '../components/RiesgoIa'
 import { fechaLocal, milimetros } from '../utils/formato'
 
@@ -86,6 +87,7 @@ export default function AlertasPage() {
                 Lluvia acumulada {milimetros(z.precipitacionMm)} · {z.cuerpoAgua} · Comunidades:{' '}
                 {z.comunidades}
               </p>
+              <Boletin boletin={z.boletin} />
               <RiesgoIa riesgoIa={z.riesgoIa} compacto />
             </li>
           ))}

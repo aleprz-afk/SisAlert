@@ -152,6 +152,12 @@ python -m venv .venv                          # solo la primera vez
 .\.venv\Scripts\python -m uvicorn app.main:app --port 8000
 ```
 
+Para que los boletines los redacte Gemini, antes de arrancar define la clave de Google AI Studio en esa terminal. Sin clave funciona igual, con una plantilla fija:
+
+```powershell
+$env:GEMINI_API_KEY = "<tu-clave>"
+```
+
 Queda escuchando en `http://localhost:8000` (documentación en `/docs`). alertas-service lo llama en cada sincronización y guarda la predicción. El detalle del modelo está en [`docs/ia.md`](docs/ia.md).
 
 ### 4. Frontend (terminal 4)
@@ -171,7 +177,8 @@ Recorrido de la demostración:
 3. **Alertas** (`/alertas`): solo las zonas en precaución o peligro, la más grave primero.
 4. **Zonas** (`/zonas`): crear, editar y eliminar zonas de riesgo. Al eliminar una zona se borran en cascada sus lecturas y alertas.
 5. **Pronóstico IA**: cada tarjeta muestra la probabilidad de lluvia fuerte (40 mm o más) en las próximas 24 horas, el riesgo (bajo, medio o alto) y las tres variables que más pesaron.
-6. **Modo simulación (solo admin)**: en la barra superior, el selector **Datos** cambia en vivo entre *Reales (Open-Meteo + IA)* y las simulaciones *época seca*, *tormenta* y *creciente*. Sirve para mostrar en la sustentación el estado actual y cómo reacciona el sistema con lluvia, sin reiniciar nada. La simulación se calcula al vuelo en `GET /api/simulacion/{escenario}` (semáforo e IA con la serie del escenario): **no se guarda nada** y los demás usuarios siguen viendo los datos reales.
+6. **Boletín para la comunidad**: en las zonas en precaución o peligro, un mensaje en lenguaje sencillo para los vecinos, redactado con IA generativa (Gemini) a partir de los datos del sistema. Sin clave de Gemini se usa una plantilla fija.
+7. **Modo simulación (solo admin)**: en la barra superior, el selector **Datos** cambia en vivo entre *Reales (Open-Meteo + IA)* y las simulaciones *época seca*, *tormenta* y *creciente*. Sirve para mostrar en la sustentación el estado actual y cómo reacciona el sistema con lluvia, sin reiniciar nada. La simulación se calcula al vuelo en `GET /api/simulacion/{escenario}` (semáforo e IA con la serie del escenario): **no se guarda nada** y los demás usuarios siguen viendo los datos reales.
 
 ## Configuración y variables de entorno
 
@@ -196,6 +203,7 @@ La lista completa de variables de producción, con ejemplos, está en [`.env.exa
 | `ALERTAS_FUENTE`, `ALERTAS_ESCENARIO` | alertas | Fuente de datos y escenario de demostración |
 | `AI_SERVICE_URL` | alertas | URL del servicio de IA. Vacía = IA desactivada; en dev, `http://localhost:8000` |
 | `AI_API_KEY` | alertas e IA | Clave compartida que el servicio de IA exige en `X-Api-Key` |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | IA | Clave de Google AI Studio y modelo para los boletines (opcional) |
 
 `.env` y `.env.*` están en `.gitignore`; solo se sube la plantilla `.env.example`.
 
@@ -241,6 +249,7 @@ La regla de umbral dice cómo está cada zona **hoy**. El servicio de IA **antic
 - **Modelo:** regresión logística elegida entre 5 candidatos con validación cruzada temporal. En la prueba de 2026 tuvo ROC-AUC de 0,88 y probabilidades mejor calibradas que la climatología.
 - **Riesgo:** `BAJO`, `MEDIO` (3 veces el riesgo normal) o `ALTO` (6 veces). Siempre viene con las variables que más pesaron.
 - Si la IA falla, la sincronización sigue con la regla de umbral.
+- **IA generativa:** Gemini redacta un boletín para la comunidad de cada zona en alerta. Solo se llama cuando cambia el estado de la zona, recibe únicamente datos estructurados y, si falla, se usa una plantilla.
 
 Ficha completa, con métricas, comparación de modelos y limitaciones: [`docs/ia.md`](docs/ia.md).
 

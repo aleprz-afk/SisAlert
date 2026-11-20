@@ -34,7 +34,7 @@ class SimulacionServiceTest {
     void setUp() {
         zonas = mock(ZonaRepository.class);
         ia = mock(ClientePrediccionIa.class);
-        service = new SimulacionService(zonas, new ReglaDeUmbral(40, 80), ia, 40, 80);
+        service = new SimulacionService(zonas, new ReglaDeUmbral(40, 80), ia, mock(BoletinService.class), 40, 80);
         when(zonas.findAll(any(Sort.class))).thenReturn(List.of(
                 new Zona("Zona Guatiquía Norte", "Río Guatiquía", "Barzal", "0035035100"),
                 new Zona("Zona Guayuriba Sur", "Río Guayuriba", "Apiay", "3502700090"),
