@@ -1,0 +1,5 @@
+.venv/
+__pycache__/
+.pytest_cache/
+# Datos descargados: se regeneran con python -m training.descargar_datos
+data/

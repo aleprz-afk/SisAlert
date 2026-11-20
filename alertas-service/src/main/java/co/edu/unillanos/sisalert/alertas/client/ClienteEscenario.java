@@ -1,7 +1,13 @@
 package co.edu.unillanos.sisalert.alertas.client;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -18,6 +24,9 @@ import org.springframework.stereotype.Component;
  *
  * Los milímetros se calculan a partir de los umbrales configurados, así el escenario
  * sigue siendo coherente aunque se cambien los umbrales.
+ *
+ * También entrega una serie horaria sintética coherente con cada nivel (lluvia de la semana y
+ * pronóstico), para que el modelo de IA "vea" la misma tormenta durante la demostración.
  */
 @Component
 @ConditionalOnProperty(name = "alertas.fuente", havingValue = "escenario")
@@ -32,6 +41,8 @@ public class ClienteEscenario implements ClienteDatosExternos {
     private final double mmNormal;
     private final double mmPrecaucion;
     private final double mmPeligro;
+    private final double umbralPrecaucion;
+    private final double umbralPeligro;
 
     public ClienteEscenario(
             @Value("${alertas.escenario:tormenta}") String escenario,
@@ -46,6 +57,8 @@ public class ClienteEscenario implements ClienteDatosExternos {
         this.mmNormal = redondear(umbralPrecaucion * 0.3);
         this.mmPrecaucion = redondear((umbralPrecaucion + umbralPeligro) / 2);
         this.mmPeligro = redondear(umbralPeligro * 1.15);
+        this.umbralPrecaucion = umbralPrecaucion;
+        this.umbralPeligro = umbralPeligro;
     }
 
     @Override
@@ -64,6 +77,32 @@ public class ClienteEscenario implements ClienteDatosExternos {
                 default -> mmNormal;
             };
         };
+    }
+
+    /**
+     * Serie sintética: la lluvia del día se reparte en las últimas 12 horas; antes de una
+     * zona en peligro llovió también los dos días previos (suelo saturado), y el pronóstico
+     * sigue la misma tendencia que el nivel de la zona.
+     */
+    @Override
+    public Optional<SerieLluvia> serieHoraria(String codigoEstacion) {
+        double mmHoy = precipitacionAcumuladaMm(codigoEstacion);
+        boolean peligro = mmHoy >= umbralPeligro;
+        boolean precaucion = !peligro && mmHoy >= umbralPrecaucion;
+
+        List<Double> pasadas = new ArrayList<>(Collections.nCopies(SerieLluvia.HORAS_HISTORIA, 0.0));
+        int ultima = SerieLluvia.HORAS_HISTORIA - 1;
+        double previa = peligro ? 0.5 : precaucion ? 0.3 : 0.0;
+        for (int h = ultima - 72 + 1; h <= ultima - 24; h++) {
+            pasadas.set(h, previa);
+        }
+        for (int h = ultima - 12 + 1; h <= ultima; h++) {
+            pasadas.set(h, redondear(mmHoy / 12));
+        }
+        double porHora = peligro ? 4.0 : precaucion ? 1.5 : 0.0;
+        List<Double> pronostico = Collections.nCopies(SerieLluvia.HORAS_PRONOSTICO, porHora);
+        LocalDateTime ahora = LocalDateTime.now(ZoneId.of("America/Bogota")).truncatedTo(ChronoUnit.HOURS);
+        return Optional.of(new SerieLluvia(pasadas, pronostico, ahora));
     }
 
     private static double redondear(double mm) {

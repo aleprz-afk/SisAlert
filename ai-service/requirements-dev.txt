@@ -1,0 +1,5 @@
+# Entrenamiento y pruebas (además de requirements.txt).
+-r requirements.txt
+pandas==3.1.1
+pytest==9.2.0
+httpx==0.28.1

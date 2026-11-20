@@ -20,6 +20,7 @@
 | Frontend | React + Vite | 5173 | `frontend/` |
 | API de autenticación | ASP.NET Core (.NET 10) + EF Core/PostgreSQL | 5132 | `auth-service/` (basada en [mini-identity-api-dotnet](https://github.com/wolfcor10/mini-identity-api-dotnet), con persistencia y CRUD agregados) |
 | Microservicio de alertas | Java + Spring Boot, PostgreSQL | 8081 | `alertas-service/` |
+| Servicio de IA | Python + FastAPI + scikit-learn | 8000 | `ai-service/` |
  
 Toda la comunicación es HTTP/REST con JSON. El navegador solo habla con el frontend (puerto 5173) y el proxy de Vite reenvía las llamadas, así que no hay problemas de CORS en desarrollo:
  
@@ -37,6 +38,7 @@ SisAlert/
 ├── frontend/          React + Vite (login, tablero, alertas, zonas)
 ├── alertas-service/   Spring Boot (zonas, lecturas, alertas, umbrales, CRUD de zonas)
 ├── auth-service/      ASP.NET Core (.NET 10) con EF Core (usuarios, roles, permisos)
+├── ai-service/        Python + FastAPI: modelo de riesgo de lluvia fuerte a 24 h
 ├── docs/              Diagramas de infraestructura, aplicación y datos
 └── README.md
 ```
@@ -51,6 +53,7 @@ Ambos servicios comparten la misma instancia de PostgreSQL (`sisalert`) pero cad
 | .NET SDK | 10 | API de autenticación |
 | JDK | 17 o superior | Microservicio de alertas (Maven va incluido con `mvnw`) |
 | Node.js | 20 o superior | Frontend |
+| Python | 3.12 o superior | Servicio de IA |
 | Docker | reciente (opcional) | Contenedor de PostgreSQL (y despliegue con compose) |
  
 Comprobar versiones:
@@ -64,7 +67,7 @@ node -v
  
 ## Cómo levantar todo
  
-Se necesitan **tres terminales**, una por componente, más el contenedor de PostgreSQL. Conviene arrancarlos en este orden.
+Se necesitan **cuatro terminales**, una por componente, más el contenedor de PostgreSQL. Conviene arrancarlos en este orden. El servicio de IA es opcional: si no está corriendo, todo funciona igual, pero sin la predicción a 24 horas.
 
 En local **no hay que configurar nada**: cada servicio arranca en modo desarrollo con valores listos para el PostgreSQL de abajo. Las credenciales de producción nunca están en el repositorio (ver [Configuración y variables de entorno](#configuración-y-variables-de-entorno)).
 
@@ -140,7 +143,18 @@ Los umbrales de alerta están en el mismo archivo (`alertas.umbral.precaucion-mm
 
 El microservicio **valida el JWT** de la API de identidad en cada petición: firma, emisor, audiencia y vencimiento. Usa la misma clave `Jwt__Key`. Ver [Seguridad](#seguridad).
  
-### 3. Frontend (terminal 3)
+### 3. Servicio de IA (terminal 3)
+
+```powershell
+cd SisAlert/ai-service
+python -m venv .venv                          # solo la primera vez
+.\.venv\Scripts\pip install -r requirements.txt   # solo la primera vez
+.\.venv\Scripts\python -m uvicorn app.main:app --port 8000
+```
+
+Queda escuchando en `http://localhost:8000` (documentación en `/docs`). alertas-service lo llama en cada sincronización y guarda la predicción. El detalle del modelo está en [`docs/ia.md`](docs/ia.md).
+
+### 4. Frontend (terminal 4)
  
 ```bash
 cd SisAlert/frontend
@@ -156,6 +170,7 @@ Recorrido de la demostración:
 2. Botón **Sincronizar lecturas**: el microservicio consulta la fuente de datos, guarda las lecturas y recalcula el nivel de cada zona (verde, amarillo o rojo).
 3. **Alertas** (`/alertas`): solo las zonas en precaución o peligro, la más grave primero.
 4. **Zonas** (`/zonas`): crear, editar y eliminar zonas de riesgo. Al eliminar una zona se borran en cascada sus lecturas y alertas.
+5. **Pronóstico IA**: cada tarjeta muestra la probabilidad de lluvia fuerte (40 mm o más) en las próximas 24 horas, el riesgo (bajo, medio o alto) y las tres variables que más pesaron.
 
 ## Configuración y variables de entorno
 
@@ -178,6 +193,8 @@ La lista completa de variables de producción, con ejemplos, está en [`.env.exa
 | `Seed__AdminPassword` | identidad | Contraseña inicial de `admin` |
 | `ALERTAS_CORS_ORIGENES` | alertas | Dominio(s) del frontend desplegado |
 | `ALERTAS_FUENTE`, `ALERTAS_ESCENARIO` | alertas | Fuente de datos y escenario de demostración |
+| `AI_SERVICE_URL` | alertas | URL del servicio de IA. Vacía = IA desactivada; en dev, `http://localhost:8000` |
+| `AI_API_KEY` | alertas e IA | Clave compartida que el servicio de IA exige en `X-Api-Key` |
 
 `.env` y `.env.*` están en `.gitignore`; solo se sube la plantilla `.env.example`.
 
@@ -213,6 +230,19 @@ Protecciones:
 
 Los respaldos y la restauración a un punto en el tiempo los hace el servicio gestionado de Azure (7 días por defecto, configurable hasta 35).
 
+## Inteligencia artificial
+
+La regla de umbral dice cómo está cada zona **hoy**. El servicio de IA **anticipa** con un modelo propio, entrenado con datos reales de Villavicencio:
+
+> Probabilidad de que en las **próximas 24 horas** caigan **40 mm o más**, a partir de la lluvia de la última semana y del pronóstico meteorológico.
+
+- **Datos:** lluvia horaria de Open-Meteo (reanálisis ERA5) y pronósticos archivados emitidos un día antes (2024–2026).
+- **Modelo:** regresión logística elegida entre 5 candidatos con validación cruzada temporal. En la prueba de 2026 tuvo ROC-AUC de 0,88 y probabilidades mejor calibradas que la climatología.
+- **Riesgo:** `BAJO`, `MEDIO` (3 veces el riesgo normal) o `ALTO` (6 veces). Siempre viene con las variables que más pesaron.
+- Si la IA falla, la sincronización sigue con la regla de umbral.
+
+Ficha completa, con métricas, comparación de modelos y limitaciones: [`docs/ia.md`](docs/ia.md).
+
 ## Endpoints del microservicio de alertas
 
 Todas exigen `Authorization: Bearer <token>`. Sin token, o con uno inválido o vencido, la respuesta es `401`. Si el usuario no tiene el rol requerido, es `403`.
@@ -224,7 +254,7 @@ Todas exigen `Authorization: Bearer <token>`. Sin token, o con uno inválido o v
 | POST | `/api/zonas` | Admin | Crea una zona (`nombre`, `cuerpoAgua`, `comunidades`, `codigoEstacion`) |
 | PUT | `/api/zonas/{id}` | Admin | Actualiza una zona |
 | DELETE | `/api/zonas/{id}` | Admin | Elimina la zona y, en cascada, sus lecturas y alertas |
-| GET | `/api/alertas` | Con sesión | Una entrada por zona con su alerta vigente (`nivel` en `null` si aún no hay lecturas) |
+| GET | `/api/alertas` | Con sesión | Una entrada por zona con su alerta vigente (`nivel` en `null` si aún no hay lecturas) y su última predicción de IA (`riesgoIa`, `null` si no hay) |
 | GET | `/api/lecturas/zonas/{id}/historico` | Con sesión | Últimas 20 lecturas de una zona |
 | POST | `/api/lecturas/sincronizar` | Admin | Consulta la fuente externa, guarda las lecturas y recalcula las alertas; devuelve lo mismo que `GET /api/alertas` |
 

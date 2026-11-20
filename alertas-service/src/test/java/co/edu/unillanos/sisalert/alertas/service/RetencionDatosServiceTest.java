@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import co.edu.unillanos.sisalert.alertas.repository.AlertaRepository;
 import co.edu.unillanos.sisalert.alertas.repository.LecturaRepository;
+import co.edu.unillanos.sisalert.alertas.repository.PrediccionRiesgoRepository;
 
 class RetencionDatosServiceTest {
 
@@ -21,19 +22,21 @@ class RetencionDatosServiceTest {
     private final Clock reloj = Clock.fixed(Instant.parse("2026-11-20T08:00:00Z"), bogota);
     private final LecturaRepository lecturas = mock(LecturaRepository.class);
     private final AlertaRepository alertas = mock(AlertaRepository.class);
+    private final PrediccionRiesgoRepository predicciones = mock(PrediccionRiesgoRepository.class);
 
     @Test
     void borraLoQueSuperaLaRetencionConfigurada() {
-        new RetencionDatosService(lecturas, alertas, 365, 730, reloj).limpiar();
+        new RetencionDatosService(lecturas, alertas, predicciones, 365, 730, reloj).limpiar();
 
         LocalDateTime ahora = LocalDateTime.now(reloj);
         verify(lecturas).borrarAnterioresA(ahora.minusDays(365));
         verify(alertas).borrarHistoricasAnterioresA(ahora.minusDays(730));
+        verify(predicciones).borrarAnterioresA(ahora.minusDays(365));
     }
 
     @Test
     void conCeroDiasNoBorraNada() {
-        new RetencionDatosService(lecturas, alertas, 0, 0, reloj).limpiar();
+        new RetencionDatosService(lecturas, alertas, predicciones, 0, 0, reloj).limpiar();
 
         verify(lecturas, never()).borrarAnterioresA(any());
         verify(alertas, never()).borrarHistoricasAnterioresA(any());
