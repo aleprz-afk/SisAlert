@@ -18,7 +18,7 @@ import org.springframework.core.env.Profiles;
 public class VerificadorVariablesProduccion implements EnvironmentPostProcessor, Ordered {
 
     static final List<String> OBLIGATORIAS = List.of(
-            "DB_URL", "DB_USER", "DB_PASSWORD", "ALERTAS_CORS_ORIGENES");
+            "DB_URL", "DB_USER", "DB_PASSWORD", "ALERTAS_CORS_ORIGENES", "Jwt__Key");
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {

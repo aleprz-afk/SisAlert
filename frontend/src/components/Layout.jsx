@@ -3,7 +3,7 @@ import { useAuth } from '../context/useAuth'
 import BannerEmergencia from './BannerEmergencia'
 
 export default function Layout() {
-  const { usuario, logout } = useAuth()
+  const { usuario, esAdmin, logout } = useAuth()
 
   return (
     <div className="app">
@@ -12,7 +12,7 @@ export default function Layout() {
         <nav className="menu">
           <NavLink to="/estaciones">Tablero</NavLink>
           <NavLink to="/alertas">Alertas</NavLink>
-          <NavLink to="/zonas">Zonas</NavLink>
+          {esAdmin && <NavLink to="/zonas">Zonas</NavLink>}
         </nav>
         <div className="sesion">
           <span>{usuario}</span>

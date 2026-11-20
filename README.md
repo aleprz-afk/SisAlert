@@ -138,7 +138,7 @@ Para volver a los datos reales basta con cerrar esa terminal y arrancar el servi
 
 Los umbrales de alerta están en el mismo archivo (`alertas.umbral.precaucion-mm` y `alertas.umbral.peligro-mm`) y se cambian sin recompilar.
 
-El microservicio lee el usuario del token solo para registrar en el log quién sincronizó; **no valida la firma** del token en esta etapa (ver `docs/infraestructura.md` §7).
+El microservicio **valida el JWT** de la API de identidad en cada petición: firma, emisor, audiencia y vencimiento. Usa la misma clave `Jwt__Key`. Ver [Seguridad](#seguridad).
  
 ### 3. Frontend (terminal 3)
  
@@ -174,7 +174,7 @@ La lista completa de variables de producción, con ejemplos, está en [`.env.exa
 |---|---|---|
 | `DB_URL`, `DB_USER`, `DB_PASSWORD` | alertas | Conexión a PostgreSQL (en Azure con `?sslmode=require`) |
 | `ConnectionStrings__Identity` | identidad | Conexión a PostgreSQL (en Azure con `SSL Mode=Require`) |
-| `Jwt__Key` | identidad (y alertas, desde el paso 3) | Clave de firma de los tokens, mínimo 32 caracteres |
+| `Jwt__Key` | identidad y alertas | Clave de firma de los tokens, la **misma** en ambos; mínimo 32 caracteres |
 | `Seed__AdminPassword` | identidad | Contraseña inicial de `admin` |
 | `ALERTAS_CORS_ORIGENES` | alertas | Dominio(s) del frontend desplegado |
 | `ALERTAS_FUENTE`, `ALERTAS_ESCENARIO` | alertas | Fuente de datos y escenario de demostración |
@@ -188,15 +188,18 @@ En producción, además:
 
 ## Endpoints del microservicio de alertas
 
-| Método | Ruta | Qué hace |
-|---|---|---|
-| GET | `/api/zonas` | Lista de zonas de riesgo (incluye `codigoEstacion`) |
-| GET | `/api/zonas/{id}` | Una zona por id |
-| POST | `/api/zonas` | Crea una zona (`nombre`, `cuerpoAgua`, `comunidades`, `codigoEstacion`) |
-| PUT | `/api/zonas/{id}` | Actualiza una zona |
-| DELETE | `/api/zonas/{id}` | Elimina la zona y, en cascada, sus lecturas y alertas |
-| GET | `/api/alertas` | Una entrada por zona con su alerta vigente (`nivel` en `null` si aún no hay lecturas) |
-| POST | `/api/lecturas/sincronizar` | Consulta la fuente externa, guarda las lecturas y recalcula las alertas; devuelve lo mismo que `GET /api/alertas` |
+Todas exigen `Authorization: Bearer <token>`. Sin token, o con uno inválido o vencido, la respuesta es `401`. Si el usuario no tiene el rol requerido, es `403`.
+
+| Método | Ruta | Quién | Qué hace |
+|---|---|---|---|
+| GET | `/api/zonas` | Con sesión | Lista de zonas de riesgo (incluye `codigoEstacion`) |
+| GET | `/api/zonas/{id}` | Con sesión | Una zona por id |
+| POST | `/api/zonas` | Admin | Crea una zona (`nombre`, `cuerpoAgua`, `comunidades`, `codigoEstacion`) |
+| PUT | `/api/zonas/{id}` | Admin | Actualiza una zona |
+| DELETE | `/api/zonas/{id}` | Admin | Elimina la zona y, en cascada, sus lecturas y alertas |
+| GET | `/api/alertas` | Con sesión | Una entrada por zona con su alerta vigente (`nivel` en `null` si aún no hay lecturas) |
+| GET | `/api/lecturas/zonas/{id}/historico` | Con sesión | Últimas 20 lecturas de una zona |
+| POST | `/api/lecturas/sincronizar` | Admin | Consulta la fuente externa, guarda las lecturas y recalcula las alertas; devuelve lo mismo que `GET /api/alertas` |
 
 Los niveles son `NORMAL`, `PRECAUCION` y `PELIGRO`. Si la fuente externa falla, `sincronizar` responde `502` con `{"error":"FUENTE_EXTERNA_NO_DISPONIBLE","mensaje":"..."}` y no cambia ninguna alerta. Los errores de validación responden `400`, los recursos inexistentes `404` y los duplicados `409`, siempre con `{"error":"CODIGO","mensaje":"texto"}`. El detalle de cada respuesta está en `docs/aplicacion.md` §5.
 
@@ -219,19 +222,39 @@ Los endpoints protegidos exigen `Authorization: Bearer <token>` y rol `Admin` cu
 
 ## Comprobación rápida desde la terminal
 
-Con el microservicio corriendo (en PowerShell usar `curl.exe` en vez de `curl`):
+Con los dos servicios corriendo. En PowerShell:
 
-```bash
-# 1. Zonas cargadas al arrancar
-curl -s http://localhost:8081/api/zonas
+```powershell
+# 1. Iniciar sesión como admin y guardar el token
+$token = (Invoke-RestMethod -Method Post http://localhost:5132/api/auth/login -ContentType "application/json" -Body '{"usernameOrEmail":"admin","password":"Admin123*"}').accessToken
+$h = @{ Authorization = "Bearer $token" }
 
-# 2. Alertas antes de sincronizar: nivel en null
-curl -s http://localhost:8081/api/alertas
+# 2. Zonas cargadas al arrancar
+Invoke-RestMethod http://localhost:8081/api/zonas -Headers $h
 
 # 3. Sincronizar: devuelve cada zona con su nivel, mensaje y lluvia en mm
-curl -s -X POST http://localhost:8081/api/lecturas/sincronizar
+Invoke-RestMethod -Method Post http://localhost:8081/api/lecturas/sincronizar -Headers $h
+
+# 4. Sin token: 401
+Invoke-RestMethod http://localhost:8081/api/alertas
 ```
  
+## Seguridad
+
+| Medida | Dónde |
+|---|---|
+| JWT validado en el microservicio (firma HS256, emisor, audiencia, vencimiento) | alertas-service (Spring Security) |
+| Roles: consultar con cualquier sesión; sincronizar y crear, editar o borrar zonas solo `Admin` | alertas-service; el frontend además oculta esas opciones a quien no es Admin |
+| Contraseñas con PBKDF2-SHA256 (600.000 iteraciones). Los hashes SHA-256 anteriores se actualizan solos en el siguiente login | API de identidad |
+| Contraseña mínima de 8 caracteres al registrarse | API de identidad y pantalla de registro |
+| Máximo 10 intentos de login o registro por minuto por IP (`429`). Se cambia con `RateLimit__IntentosPorMinuto` | API de identidad |
+| El login no revela si un usuario existe o está desactivado cuando la contraseña es incorrecta | API de identidad |
+| CORS solo para los orígenes configurados (`ALERTAS_CORS_ORIGENES`, `Cors__Origenes`) | Ambos servicios |
+| Credenciales y claves solo por variables de entorno en producción | Ambos servicios (ver [Configuración](#configuración-y-variables-de-entorno)) |
+| Dependencias sin vulnerabilidades conocidas (`dotnet list package --vulnerable`) | API de identidad |
+
+Los usuarios que se registran desde la pantalla no tienen rol: pueden ver el tablero, las alertas y el histórico. Para darles el rol `Admin`, un administrador usa `POST /api/users/{id}/roles` desde Swagger.
+
 ## Modo demostración del frontend
  
 Si el microservicio de alertas no responde, el frontend usa datos simulados (`frontend/src/api/alertasMock.js`) y muestra un aviso en pantalla. Se controla con un archivo `frontend/.env.local`:

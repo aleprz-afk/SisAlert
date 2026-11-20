@@ -18,7 +18,7 @@ export default function App() {
       <Route element={<RutaProtegida><Layout /></RutaProtegida>}>
         <Route path="/estaciones" element={<EstacionesPage />} />
         <Route path="/alertas" element={<AlertasPage />} />
-        <Route path="/zonas" element={<ZonasPage />} />
+        <Route path="/zonas" element={<RutaProtegida soloAdmin><ZonasPage /></RutaProtegida>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/estaciones" replace />} />

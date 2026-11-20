@@ -1,4 +1,4 @@
-﻿using MiniIdentityApi.Application.DTOs.Auth;
+using MiniIdentityApi.Application.DTOs.Auth;
 using MiniIdentityApi.Application.Interfaces;
 using MiniIdentityApi.Domain.Entities;
 using MiniIdentityApi.Domain.Enums;
@@ -10,6 +10,9 @@ public class AuthenticationService
     private readonly IUserRepository _userRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
+
+    /// <summary>Longitud mínima de contraseña para usuarios nuevos.</summary>
+    public const int LongitudMinimaContrasena = 8;
 
     public AuthenticationService(
         IUserRepository userRepository,
@@ -31,6 +34,9 @@ public class AuthenticationService
 
         if (string.IsNullOrWhiteSpace(request.Password))
             throw new ArgumentException("Password is required.");
+
+        if (request.Password.Length < LongitudMinimaContrasena)
+            throw new ArgumentException($"La contraseña debe tener al menos {LongitudMinimaContrasena} caracteres.");
 
         var existing = _userRepository.FindByUsernameOrEmail(request.Username)
                       ?? _userRepository.FindByUsernameOrEmail(request.Email);
@@ -54,9 +60,6 @@ public class AuthenticationService
         if (user is null)
             throw new UnauthorizedAccessException("Invalid credentials.");
 
-        if (user.Status != UserStatus.Active)
-            throw new UnauthorizedAccessException("User is not active.");
-
         var isValid = _passwordHasher.Verify(
             request.Password,
             user.Credential.Salt,
@@ -64,6 +67,20 @@ public class AuthenticationService
 
         if (!isValid)
             throw new UnauthorizedAccessException("Invalid credentials.");
+
+        // El estado se revisa después de la contraseña: así no se puede averiguar si un
+        // usuario existe (o está desactivado) sin conocer su contraseña.
+        if (user.Status != UserStatus.Active)
+            throw new UnauthorizedAccessException("User is not active.");
+
+        // Si el hash es de un algoritmo anterior (SHA-256), se actualiza a PBKDF2 ahora que
+        // se conoce la contraseña. Los usuarios migran solos al iniciar sesión.
+        if (_passwordHasher.NeedsRehash(user.Credential.PasswordHash))
+        {
+            var nuevaSal = _passwordHasher.GenerateSalt();
+            user.Credential.ChangePassword(_passwordHasher.Hash(request.Password, nuevaSal), nuevaSal);
+            _userRepository.Save(user);
+        }
 
         return new AuthResponse
         {

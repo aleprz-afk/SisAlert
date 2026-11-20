@@ -25,6 +25,8 @@ function extraerMensaje(data, status) {
   if (texto) return texto
   if (status >= 500) return 'No se pudo conectar con el servidor. ¿Está corriendo el servicio?'
   if (status === 401) return 'No autorizado: la sesión es inválida o ha vencido.'
+  if (status === 403) return 'No tienes permisos para esta acción.'
+  if (status === 429) return 'Demasiados intentos. Espera un minuto e intenta de nuevo.'
   if (status === 404) return 'No se encontró el recurso solicitado.'
   if (status === 409) return 'La operación entró en conflicto con el estado actual.'
   return `Error ${status}`
