@@ -810,3 +810,24 @@ input:focus, select:focus { outline: 2px solid var(--azul); border-color: transp
 @media (max-width: 700px) {
   .form-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------- Pronóstico de la IA (riesgo en las próximas 24 h) ---------- */
+.riesgo-ia {
+  border: 1px solid var(--borde);
+  border-left: 4px solid var(--azul);
+  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: #fff;
+}
+.riesgo-ia--vacio { border-left-color: var(--borde); }
+.riesgo-ia-cabecera { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.riesgo-ia-titulo { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--azul-oscuro); }
+.riesgo-ia-probabilidad { margin: 0; }
+.riesgo-ia-probabilidad strong { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.riesgo-ia-factores { margin: 0; padding-left: 0; list-style: none; font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.riesgo-ia-nota { color: var(--gris); font-size: 0.8rem; }
+.factor-sube { color: var(--rojo); }
+.factor-baja { color: var(--verde); }

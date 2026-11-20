@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import co.edu.unillanos.sisalert.alertas.repository.AlertaRepository;
 import co.edu.unillanos.sisalert.alertas.repository.LecturaRepository;
+import co.edu.unillanos.sisalert.alertas.repository.PrediccionRiesgoRepository;
 
 /**
  * Política de retención de datos: el monitoreo automático guarda lecturas sin parar,
@@ -29,6 +30,7 @@ public class RetencionDatosService {
 
     private final LecturaRepository lecturaRepository;
     private final AlertaRepository alertaRepository;
+    private final PrediccionRiesgoRepository prediccionRepository;
     private final int diasLecturas;
     private final int diasAlertas;
     private final Clock reloj;
@@ -37,15 +39,18 @@ public class RetencionDatosService {
     public RetencionDatosService(
             LecturaRepository lecturaRepository,
             AlertaRepository alertaRepository,
+            PrediccionRiesgoRepository prediccionRepository,
             @Value("${alertas.retencion.lecturas-dias:365}") int diasLecturas,
             @Value("${alertas.retencion.alertas-dias:730}") int diasAlertas) {
-        this(lecturaRepository, alertaRepository, diasLecturas, diasAlertas, Clock.systemDefaultZone());
+        this(lecturaRepository, alertaRepository, prediccionRepository, diasLecturas, diasAlertas,
+                Clock.systemDefaultZone());
     }
 
     RetencionDatosService(LecturaRepository lecturaRepository, AlertaRepository alertaRepository,
-            int diasLecturas, int diasAlertas, Clock reloj) {
+            PrediccionRiesgoRepository prediccionRepository, int diasLecturas, int diasAlertas, Clock reloj) {
         this.lecturaRepository = lecturaRepository;
         this.alertaRepository = alertaRepository;
+        this.prediccionRepository = prediccionRepository;
         this.diasLecturas = diasLecturas;
         this.diasAlertas = diasAlertas;
         this.reloj = reloj;
@@ -59,6 +64,9 @@ public class RetencionDatosService {
         if (diasLecturas > 0) {
             int borradas = lecturaRepository.borrarAnterioresA(ahora.minusDays(diasLecturas));
             log.info("[RETENCIÓN] Lecturas de más de {} días borradas: {}", diasLecturas, borradas);
+            // Las predicciones de IA se conservan lo mismo que las lecturas en que se basan.
+            int predicciones = prediccionRepository.borrarAnterioresA(ahora.minusDays(diasLecturas));
+            log.info("[RETENCIÓN] Predicciones de IA de más de {} días borradas: {}", diasLecturas, predicciones);
         }
         if (diasAlertas > 0) {
             int borradas = alertaRepository.borrarHistoricasAnterioresA(ahora.minusDays(diasAlertas));

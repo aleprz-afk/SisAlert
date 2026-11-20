@@ -5,8 +5,14 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,14 +37,8 @@ public class ClienteOpenMeteo implements ClienteDatosExternos {
 
     private static final Logger log = LoggerFactory.getLogger(ClienteOpenMeteo.class);
 
-    private record Coordenada(double lat, double lon) {}
-
-    // Coordenadas geográficas exactas de los sectores urbanos de riesgo en Villavicencio (POMCA)
-    private static final Map<String, Coordenada> COORDENADAS = Map.of(
-            "0035035100", new Coordenada(4.1485, -73.6340), // Guatiquía Norte (Barzal / Siete de Agosto)
-            "3502700090", new Coordenada(4.0750, -73.6550), // Guayuriba Sur (Catumare / Porfía)
-            "0035025110", new Coordenada(4.1280, -73.6260)  // Caño Grande / Maizaro (Villacentro / Porvenir)
-    );
+    private static final ZoneId BOGOTA = ZoneId.of("America/Bogota");
+    private static final DateTimeFormatter HORA_OPEN_METEO = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final HttpClient http;
     private final ObjectMapper mapper;
@@ -57,11 +57,7 @@ public class ClienteOpenMeteo implements ClienteDatosExternos {
 
     @Override
     public double precipitacionAcumuladaMm(String codigoEstacion) throws FuenteExternaException {
-        Coordenada coord = COORDENADAS.get(codigoEstacion);
-        if (coord == null) {
-            // Coordenadas por defecto centro de Villavicencio
-            coord = new Coordenada(4.1420, -73.6266);
-        }
+        CoordenadasEstaciones.Coordenada coord = CoordenadasEstaciones.de(codigoEstacion);
 
         // Consulta precipitación acumulada del día en tiempo real (timezone de Colombia)
         // Se usa Locale.US para asegurar el punto decimal en la URL en vez de coma
@@ -95,6 +91,75 @@ public class ClienteOpenMeteo implements ClienteDatosExternos {
         } catch (Exception e) {
             throw new FuenteExternaException("Error al consultar datos meteorológicos reales de " + codigoEstacion, e);
         }
+    }
+
+    /**
+     * Lluvia horaria de los últimos 7 días y pronóstico de las próximas 24 h en una sola consulta
+     * (past_days=7, forecast_days=2). Es la misma fuente con la que se entrenó el modelo de IA.
+     */
+    @Override
+    public Optional<SerieLluvia> serieHoraria(String codigoEstacion) {
+        CoordenadasEstaciones.Coordenada coord = CoordenadasEstaciones.de(codigoEstacion);
+        String url = String.format(
+                Locale.US,
+                "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&hourly=precipitation"
+                        + "&past_days=7&forecast_days=2&timezone=America%%2FBogota",
+                coord.lat(), coord.lon());
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("User-Agent", "SisAlert-Weather/1.0")
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                log.warn("Open-Meteo (serie horaria) respondió HTTP {} para {}", resp.statusCode(), codigoEstacion);
+                return Optional.empty();
+            }
+            LocalDateTime horaActual = LocalDateTime.now(BOGOTA).truncatedTo(ChronoUnit.HOURS);
+            return armarSerie(mapper.readTree(resp.body()), horaActual);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Optional.empty();
+        } catch (Exception e) {
+            log.warn("No se pudo obtener la serie horaria de {}: {}", codigoEstacion, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Toma de la respuesta horaria las 168 horas que terminan en horaActual y las 24 siguientes.
+     * Si falta alguna hora o algún valor, no hay serie (la zona queda sin predicción de IA).
+     */
+    static Optional<SerieLluvia> armarSerie(JsonNode root, LocalDateTime horaActual) {
+        JsonNode tiempos = root.path("hourly").path("time");
+        JsonNode lluvia = root.path("hourly").path("precipitation");
+        if (!tiempos.isArray() || !lluvia.isArray() || tiempos.size() != lluvia.size()) {
+            return Optional.empty();
+        }
+        int actual = -1;
+        for (int i = 0; i < tiempos.size(); i++) {
+            if (LocalDateTime.parse(tiempos.get(i).asText(), HORA_OPEN_METEO).equals(horaActual)) {
+                actual = i;
+                break;
+            }
+        }
+        int desde = actual - SerieLluvia.HORAS_HISTORIA + 1;
+        int hasta = actual + SerieLluvia.HORAS_PRONOSTICO;
+        if (actual < 0 || desde < 0 || hasta >= lluvia.size()) {
+            return Optional.empty();
+        }
+        List<Double> pasadas = new ArrayList<>();
+        List<Double> pronostico = new ArrayList<>();
+        for (int i = desde; i <= hasta; i++) {
+            JsonNode valor = lluvia.get(i);
+            if (!valor.isNumber() || valor.asDouble() < 0) {
+                return Optional.empty();
+            }
+            (i <= actual ? pasadas : pronostico).add(valor.asDouble());
+        }
+        return Optional.of(new SerieLluvia(pasadas, pronostico, horaActual));
     }
 
     /**

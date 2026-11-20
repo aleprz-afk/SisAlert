@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import ChipModoDemo from '../components/ChipModoDemo'
 import MapaVillavicencio from '../components/MapaVillavicencio'
 import ModalHistoricoZona from '../components/ModalHistoricoZona'
+import RiesgoIa from '../components/RiesgoIa'
 import { getAlertas, sincronizar } from '../api/alertasApi'
 import { useAuth } from '../context/useAuth'
 import { fechaLocal, milimetros } from '../utils/formato'
@@ -143,6 +144,8 @@ export default function EstacionesPage() {
                   <span className="metrica-etiqueta">Última lectura</span>
                 </div>
               </div>
+
+              <RiesgoIa riesgoIa={z.riesgoIa} />
 
               <p className="alerta-meta">Comunidades: {z.comunidades}</p>
 

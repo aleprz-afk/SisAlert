@@ -4,7 +4,10 @@ import java.time.LocalDateTime;
 
 import co.edu.unillanos.sisalert.alertas.model.NivelAlerta;
 
-/** Una entrada por zona. Si la zona no tiene alerta, nivel/mensaje/precipitacionMm/fechaHora van en null. */
+/**
+ * Una entrada por zona. Si la zona no tiene alerta, nivel/mensaje/precipitacionMm/fechaHora van en null.
+ * riesgoIa es la última predicción del servicio de IA (null si la IA no está disponible).
+ */
 public record AlertaDto(
         Long zonaId,
         String zona,
@@ -13,5 +16,6 @@ public record AlertaDto(
         NivelAlerta nivel,
         String mensaje,
         Double precipitacionMm,
-        LocalDateTime fechaHora) {
+        LocalDateTime fechaHora,
+        RiesgoIaDto riesgoIa) {
 }
