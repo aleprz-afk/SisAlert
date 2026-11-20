@@ -2,6 +2,10 @@
 
 Cómo están construidos y cómo se comunican los servicios de SisAlert. La infraestructura de Azure donde corren está en `arquitectura-nube.md`; el detalle funcional del MVP, en `aplicacion.md`.
 
+![Arquitectura de la aplicación](arquitectura-aplicacion.png)
+
+> La imagen es la versión final para la entrega; el diagrama Mermaid de abajo queda como fuente editable.
+
 ## 1. Servicios y contratos
 
 ```mermaid

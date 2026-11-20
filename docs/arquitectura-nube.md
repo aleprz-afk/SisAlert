@@ -2,6 +2,10 @@
 
 Arquitectura objetivo de SisAlert en Microsoft Azure. Para la ejecución local con cuatro terminales, ver `infraestructura.md`. El código ya está preparado para este despliegue; la creación de los recursos (Docker, CI/CD e IaC) es el paso siguiente.
 
+![Arquitectura en la nube](arquitectura-nube.png)
+
+> La imagen es la versión final para la entrega; el diagrama Mermaid de abajo queda como fuente editable.
+
 ## 1. Diagrama
 
 ```mermaid

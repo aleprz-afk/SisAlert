@@ -15,7 +15,7 @@
 
 
 ## Diagrama de arquitectura del Proyecto
-![Arquitectura del MVP](docs/arquitectura.png)
+![Arquitectura del proyecto](docs/arquitectura-aplicacion.png)
 
 | Componente | Tecnología | Puerto | Dónde está |
 |---|---|---|---|

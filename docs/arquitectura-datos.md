@@ -2,6 +2,10 @@
 
 Qué datos maneja SisAlert, dónde viven, cómo fluyen y cuánto se conservan. El detalle columna por columna de las tablas de alertas está en `modelo-datos.md`; el del modelo de IA, en `ia.md`.
 
+![Arquitectura de datos](arquitectura-datos.png)
+
+> La imagen es la versión final para la entrega; el diagrama Mermaid de abajo queda como fuente editable.
+
 ## 1. Flujo de datos
 
 ```mermaid
