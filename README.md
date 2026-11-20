@@ -74,6 +74,43 @@ java -version
 node -v
 ```
  
+## Levantar todo con Docker (un solo comando)
+
+Requiere solo **Docker Desktop**: no hace falta instalar Java, .NET, Python ni Node. Levanta los 5 componentes como en producción:
+- PostgreSQL, la API de identidad, alertas e IA quedan en la red interna de Docker.
+- Solo el frontend se publica, en **http://localhost:8080**.
+
+1. Crear el archivo `.env` a partir de la plantilla y completar la sección **Docker Compose** con contraseñas y claves inventadas. `.env` no se sube al repositorio.
+
+   ```powershell
+   Copy-Item .env.example .env
+   notepad .env
+   ```
+
+2. Construir y levantar. La primera vez tarda varios minutos, porque descarga las imágenes base y compila:
+
+   ```powershell
+   docker compose up -d --build
+   ```
+
+3. Revisar que todo esté sano y abrir **http://localhost:8080**. Se entra como `admin` con la contraseña de `ADMIN_PASSWORD`.
+
+   ```powershell
+   docker compose ps
+   ```
+
+| Comando | Para qué |
+|---|---|
+| `docker compose logs -f alertas` | Ver los logs de un servicio (`db`, `auth`, `ai`, `alertas`, `frontend`) |
+| `docker compose down` | Detener todo. Los datos quedan en el volumen `pgdata` |
+| `docker compose down -v` | Detener y **borrar** la base |
+| `docker compose up -d --build alertas` | Reconstruir solo un servicio después de cambiar su código |
+
+Diferencias con la forma de las 4 terminales (más abajo):
+- Todo corre en **modo producción**: Swagger desactivado, un usuario de base por servicio (`infra/db/usuarios-por-servicio.sql`), contraseña de admin tomada de `.env` y monitoreo cada 15 minutos.
+- Para la demo con lluvia sigue estando el selector de simulación del admin. Para una demo sin internet, `ALERTAS_FUENTE=escenario` en `.env`.
+- La forma de las 4 terminales sigue siendo la más cómoda **para programar**, porque recarga los cambios al instante.
+
 ## Cómo levantar todo
  
 Se necesitan **cuatro terminales**, una por componente, más el contenedor de PostgreSQL. Conviene arrancarlos en este orden. El servicio de IA es opcional: si no está corriendo, todo funciona igual, pero sin la predicción a 24 horas.

@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+**/*.user
+.vs/
+docs/
+postman/
+src/MiniIdentityApi.Tests/
+.git
+Dockerfile
+.dockerignore
+**/appsettings.Development.json

@@ -1,0 +1,94 @@
+# SisAlert completo con un solo comando, replicando la arquitectura de producción en Azure:
+#   - solo el frontend (nginx) se publica en el equipo; base, identidad, alertas e IA quedan
+#     en la red interna de Docker;
+#   - todos los servicios en modo producción, con un usuario de base por servicio;
+#   - los secretos salen del archivo .env (copiar .env.example y completar la sección
+#     "Docker Compose"); .env nunca se sube al repositorio.
+#
+#   docker compose up -d --build     construir y levantar
+#   docker compose ps                estado y salud de cada servicio
+#   docker compose logs -f alertas   ver logs de un servicio
+#   docker compose down              detener (los datos quedan en el volumen pgdata)
+#   docker compose down -v           detener y BORRAR la base
+
+name: sisalert
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sisalert
+      POSTGRES_USER: sisadmin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD en .env}
+      # Los usa infra/db/init-compose.sh para crear alertas_app e identidad_app.
+      ALERTAS_DB_PASSWORD: ${ALERTAS_DB_PASSWORD:?Defina ALERTAS_DB_PASSWORD en .env}
+      IDENTIDAD_DB_PASSWORD: ${IDENTIDAD_DB_PASSWORD:?Defina IDENTIDAD_DB_PASSWORD en .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/db/init-compose.sh:/docker-entrypoint-initdb.d/10-usuarios.sh:ro
+      - ./infra/db/usuarios-por-servicio.sql:/sql/usuarios-por-servicio.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sisadmin -d sisalert"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  auth:
+    build: ./auth-service
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Identity: "Host=db;Port=5432;Database=sisalert;Username=identidad_app;Password=${IDENTIDAD_DB_PASSWORD};Maximum Pool Size=10"
+      Persistencia__EsquemaHistorial: identidad
+      Jwt__Key: ${JWT_KEY:?Defina JWT_KEY en .env (mínimo 32 caracteres)}
+      Seed__AdminPassword: ${ADMIN_PASSWORD:?Defina ADMIN_PASSWORD en .env}
+      # Delante solo está nginx (en Azure son 2 saltos: ingreso público e interno).
+      Proxy__SaltosConfiables: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ai:
+    build: ./ai-service
+    environment:
+      AI_API_KEY: ${AI_API_KEY:?Defina AI_API_KEY en .env}
+      # Opcional: sin clave, los boletines salen de la plantilla.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    restart: unless-stopped
+
+  alertas:
+    build: ./alertas-service
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://db:5432/sisalert
+      # La base está en la red privada de Docker; en Azure se usa ?sslmode=require.
+      DB_SSL_OPCIONAL: "true"
+      DB_USER: alertas_app
+      DB_PASSWORD: ${ALERTAS_DB_PASSWORD}
+      Jwt__Key: ${JWT_KEY}
+      ALERTAS_CORS_ORIGENES: http://localhost:${FRONTEND_PUERTO:-8080}
+      AI_SERVICE_URL: http://ai:8000
+      AI_API_KEY: ${AI_API_KEY}
+      ALERTAS_FUENTE: ${ALERTAS_FUENTE:-open-meteo}
+    depends_on:
+      db:
+        condition: service_healthy
+      ai:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    environment:
+      AUTH_API_URL: http://auth:8080
+      ALERTAS_API_URL: http://alertas:8081
+    ports:
+      - "${FRONTEND_PUERTO:-8080}:8080"
+    depends_on:
+      - auth
+      - alertas
+    restart: unless-stopped
+
+volumes:
+  pgdata:
