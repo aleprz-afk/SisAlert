@@ -16,7 +16,8 @@ public class IdentityDbContextFactory : IDesignTimeDbContextFactory<IdentityDbCo
 
         var options = new DbContextOptionsBuilder<IdentityDbContext>()
             .UseNpgsql(connectionString,
-        npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", IdentityDbContext.EsquemaHistorial))
+                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory",
+                    Environment.GetEnvironmentVariable("Persistencia__EsquemaHistorial") ?? IdentityDbContext.EsquemaHistorial))
             .Options;
 
         return new IdentityDbContext(options);

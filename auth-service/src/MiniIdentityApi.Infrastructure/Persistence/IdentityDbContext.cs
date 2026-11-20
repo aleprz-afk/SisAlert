@@ -14,8 +14,9 @@ public class IdentityDbContext : DbContext
     public const string Esquema = "identidad";
 
     /// <summary>
-    /// La tabla de historial de migraciones se queda en "public" para que las bases
-    /// creadas antes de mover las tablas reconozcan las migraciones ya aplicadas.
+    /// Esquema por defecto de la tabla de historial de migraciones: "public", para que las
+    /// bases creadas antes de mover las tablas reconozcan las migraciones ya aplicadas.
+    /// En bases nuevas con usuarios por servicio se cambia con Persistencia__EsquemaHistorial.
     /// </summary>
     public const string EsquemaHistorial = "public";
 

@@ -186,6 +186,33 @@ En producción, además:
 - Los errores no devuelven detalles internos.
 - El monitoreo automático corre cada 15 minutos en vez de cada minuto.
 
+## Base de datos en la nube
+
+Los servicios no dependen de una base local: basta con apuntar las variables de conexión a cualquier PostgreSQL. Para Azure Database for PostgreSQL (o cualquier base remota):
+
+1. **Crear un usuario por servicio**, una sola vez, con el administrador del servidor:
+
+   ```bash
+   psql "host=<servidor>.postgres.database.azure.com dbname=sisalert user=<admin> sslmode=require"         -v alertas_pass='<contraseña-alertas>' -v identidad_pass='<contraseña-identidad>'         -f infra/db/usuarios-por-servicio.sql
+   ```
+
+   Crea `alertas_app` e `identidad_app`. Cada uno solo puede usar su propio esquema: `alertas_app` recibe `permission denied` si intenta leer `identidad.usuarios`. Nadie puede crear objetos en `public`.
+
+2. **Configurar los servicios** con su usuario y SSL obligatorio (ver `.env.example`):
+   - alertas: `DB_URL=jdbc:postgresql://<servidor>:5432/sisalert?sslmode=require`, `DB_USER=alertas_app`.
+   - identidad: `ConnectionStrings__Identity=...;Username=identidad_app;SSL Mode=Require` y `Persistencia__EsquemaHistorial=identidad`.
+
+3. **Arrancar.** Cada servicio crea o actualiza sus tablas con sus migraciones; no hace falta correr nada a mano.
+
+Protecciones:
+- En perfil `prod`, alertas-service **no arranca** si `DB_URL` no pide SSL. Solo se permite sin SSL con `DB_SSL_OPCIONAL=true`, para una base en red privada.
+- Las conexiones se renuevan antes de que Azure corte las inactivas.
+- La API de identidad reintenta ante cortes transitorios.
+
+**Retención de datos.** Todos los días a las 3:00 a. m. se borran las lecturas de más de 365 días y las alertas históricas de más de 730. La alerta vigente nunca se borra. Se ajusta con `ALERTAS_RETENCION_LECTURAS_DIAS` y `ALERTAS_RETENCION_ALERTAS_DIAS`; con `0` se desactiva.
+
+Los respaldos y la restauración a un punto en el tiempo los hace el servicio gestionado de Azure (7 días por defecto, configurable hasta 35).
+
 ## Endpoints del microservicio de alertas
 
 Todas exigen `Authorization: Bearer <token>`. Sin token, o con uno inválido o vencido, la respuesta es `401`. Si el usuario no tiene el rol requerido, es `403`.
