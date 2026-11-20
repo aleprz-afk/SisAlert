@@ -1,5 +1,7 @@
 # Sistema de Alertas Tempranas de Crecientes — Villavicencio
 
+[![CI](https://github.com/aleprz-afk/SisAlert/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/aleprz-afk/SisAlert/actions/workflows/ci.yml)
+
 * **Asignatura:** Teleco 1 · Proyecto final · 2026-II
 * **Institución:** Universidad de los Llanos (FCBI, Ingeniería de Sistemas)
 
@@ -418,6 +420,18 @@ Para la sustentación se usa `VITE_MOCK_ALERTAS=false`, así queda claro que los
 | `Port 8081 was already in use` | Otra aplicación usa el puerto | Cerrarla, o cambiar `server.port` en `application.properties` y el destino en `frontend/vite.config.js` |
 | `./mvnw: Permission denied` | Falta permiso de ejecución | `chmod +x mvnw` |
  
+## Integración continua (GitHub Actions)
+
+En cada pull request y en cada push a `develop` o `main`, `.github/workflows/ci.yml` hace esto:
+
+| Etapa | Qué revisa |
+|---|---|
+| Pruebas | `mvnw test` (alertas), `dotnet test` (identidad), `pytest` (IA), lint y build (frontend), en paralelo |
+| Seguridad | Dependencias con vulnerabilidades conocidas: `dotnet list package --vulnerable`, `npm audit` (producción, alta o crítica) y `pip-audit` |
+| Imágenes | Construye las 4 imágenes Docker, solo si todo lo anterior pasó |
+
+Un PR con el CI en rojo no debería aprobarse.
+
 ## Forma de trabajo en Git
  
 Cada integrante trabaja en su propia rama. Nadie sube directo a `main`: todo entra por pull request con revisión de otro integrante.
