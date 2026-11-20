@@ -1,0 +1,6 @@
+# Los scripts que se ejecutan dentro de contenedores Linux deben tener fin de línea LF,
+# aunque el repositorio se clone en Windows (core.autocrlf=true los convertiría a CRLF).
+*.sh        text eol=lf
+mvnw        text eol=lf
+*.template  text eol=lf
+Dockerfile  text eol=lf
