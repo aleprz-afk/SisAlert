@@ -9,7 +9,9 @@ import co.edu.unillanos.sisalert.alertas.model.Zona;
 import co.edu.unillanos.sisalert.alertas.repository.ZonaRepository;
 
 /**
- * Carga las zonas de riesgo al arrancar (la base H2 en memoria empieza vacía).
+ * Carga las zonas de riesgo la primera vez que arranca el servicio (la tabla
+ * zonas está vacía). Si la base ya tiene zonas, no hace nada: los datos
+ * persisten entre reinicios.
  *
  * Las tres zonas corresponden a las estaciones de precipitación del IDEAM
  * con cobertura en Villavicencio (conjunto s54a-sgyg, datos.gov.co).

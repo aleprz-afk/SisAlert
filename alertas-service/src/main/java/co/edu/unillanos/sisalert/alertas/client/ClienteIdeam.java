@@ -44,7 +44,6 @@ public class ClienteIdeam implements ClienteDatosExternos {
             "https://www.datos.gov.co/resource/s54a-sgyg.json";
     private static final String CODIGO_SENSOR = "0240";   // precipitación
     private static final int TIMEOUT_SEGUNDOS = 25;
-    private static final int DIAS_ATRAS_MAX = 90;         // ventana de búsqueda hacia atrás
 
     private final HttpClient http;
     private final ObjectMapper mapper;
@@ -169,9 +168,10 @@ public class ClienteIdeam implements ClienteDatosExternos {
                 }
             }
 
-            log.info("Estación {} · {} · {} registros · total {:.1f} mm",
-                    codigoEstacion, fecha, registros.size(), total);
-            return Math.round(total * 10.0) / 10.0;
+            double totalRedondeado = Math.round(total * 10.0) / 10.0;
+            log.info("Estación {} · {} · {} registros · total {} mm",
+                    codigoEstacion, fecha, registros.size(), totalRedondeado);
+            return totalRedondeado;
 
         } catch (FuenteExternaException e) {
             throw e;
