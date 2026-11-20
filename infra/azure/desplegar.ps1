@@ -31,7 +31,13 @@ param(
     [string]$GeminiApiKey = "",
     # 0 = frontend, identidad e IA se apagan sin tráfico (más barato). 1 = siempre encendidos.
     [ValidateSet(0, 1)]
-    [int]$ReplicasMinimas = 0
+    [int]$ReplicasMinimas = 0,
+    # PostgreSQL en otra región (vacío = la misma que -Region) y con otro tamaño, si el
+    # predeterminado (Standard_B1ms, el más barato) no está disponible para la suscripción.
+    [string]$PostgresRegion = "",
+    [string]$PostgresSku = "Standard_B1ms",
+    [ValidateSet("Burstable", "GeneralPurpose", "MemoryOptimized")]
+    [string]$PostgresTier = "Burstable"
 )
 
 # "Continue" a propósito: en Windows PowerShell 5.1, con "Stop", cualquier aviso que az o docker
@@ -122,6 +128,9 @@ $parametros = @{
         imageTag            = @{ value = $etiqueta }
         deployerPrincipalId = @{ value = $usuarioId }
         replicasMinimas     = @{ value = $ReplicasMinimas }
+        postgresLocation    = @{ value = $PostgresRegion }
+        postgresSku         = @{ value = $PostgresSku }
+        postgresTier        = @{ value = $PostgresTier }
         dbAdminPassword     = @{ value = $secretos["db-admin-password"] }
         alertasDbPassword   = @{ value = $secretos["alertas-db-password"] }
         identidadDbPassword = @{ value = $secretos["identidad-db-password"] }
@@ -147,6 +156,9 @@ function Desplegar-Bicep([string]$fase, [bool]$conApps) {
             Write-Host "    no está permitida. Regiones permitidas en esta suscripción: $lista" -ForegroundColor Yellow
             Write-Host "    Vuelva a ejecutar con una de ellas, por ejemplo: .\infra\azure\desplegar.ps1 -Region <region>" -ForegroundColor Yellow
         }
+        Write-Host "    Si el error dice 'SkuNotAvailable' en PostgreSQL, ese tamaño no está disponible en la región." -ForegroundColor Yellow
+        Write-Host "    Ver los disponibles:  az postgres flexible-server list-skus --location <region> -o table" -ForegroundColor Yellow
+        Write-Host "    Y repetir con:        -PostgresRegion <region> o -PostgresSku <tamaño>" -ForegroundColor Yellow
         throw "Falló el despliegue de Bicep ($fase). Revise el mensaje de Azure arriba."
     }
     return ($resultado | Out-String | ConvertFrom-Json)
