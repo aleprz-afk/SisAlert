@@ -38,6 +38,9 @@ param(
     # Otro nombre para el servidor PostgreSQL (vacío = pg-sisalert-<sufijo>), por si un intento
     # fallido dejó el nombre bloqueado en otra región (error InvalidResourceLocation).
     [string]$PostgresNombre = "",
+    # Plan B: si el entorno no permite que el frontend llame a los servicios internos por su
+    # nombre corto, este interruptor los vuelve públicos (siguen protegidos por JWT y X-Api-Key).
+    [switch]$ServiciosPublicos,
     [string]$PostgresSku = "Standard_B1ms",
     [ValidateSet("Burstable", "GeneralPurpose", "MemoryOptimized")]
     [string]$PostgresTier = "Burstable"
@@ -156,6 +159,7 @@ $parametros = @{
         replicasMinimas     = @{ value = $ReplicasMinimas }
         postgresLocation    = @{ value = $PostgresRegion }
         postgresNombre      = @{ value = $PostgresNombre }
+        serviciosPublicos   = @{ value = [bool]$ServiciosPublicos }
         postgresSku         = @{ value = $PostgresSku }
         postgresTier        = @{ value = $PostgresTier }
         dbAdminPassword     = @{ value = $secretos["db-admin-password"] }

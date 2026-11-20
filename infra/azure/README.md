@@ -111,6 +111,34 @@ Con todo encendido el costo estimado es de **USD 20 a 35 al mes**. Pausado, solo
 
 Los logs de cada servicio están en el portal: grupo `rg-sisalert` → el Container App → **Supervisión → Secuencia de registro**.
 
+## 6. Si el frontend carga pero el login no funciona (entorno "Express")
+
+Algunas suscripciones de estudiante crean el entorno de Container Apps en modo **Express**. Ahí las apps internas solo se pueden llamar **por su nombre corto** desde otra app del entorno (`http://ca-auth`); la dirección completa responde `404 {"error":"Not found"}`. Desde esta versión el script ya usa los nombres cortos.
+
+**1. Probar desde dentro del frontend que el nombre corto funciona (30 segundos):**
+
+```powershell
+az containerapp exec --resource-group rg-sisalert --name ca-frontend --command "wget -S -O- http://ca-auth/health"
+```
+
+**2a. Si responde `Healthy`**, volver a desplegar con la versión actualizada del repositorio:
+
+```powershell
+git pull
+```
+
+```powershell
+.\infra\azure\desplegar.ps1 -Region westus3 -PostgresSku Standard_B2ats_v2 -PostgresNombre pg-sisalert-2
+```
+
+**2b. Si no responde** (error de nombre o de conexión), usar el plan B: identidad, alertas e IA quedan **públicos**, protegidos por JWT con roles (alertas) y `X-Api-Key` (IA). Es el mismo comando con `-ServiciosPublicos`:
+
+```powershell
+.\infra\azure\desplegar.ps1 -Region westus3 -PostgresSku Standard_B2ats_v2 -PostgresNombre pg-sisalert-2 -ServiciosPublicos
+```
+
+**3. Probar:** abrir la URL que muestra el script, entrar como `admin` (la contraseña está en Key Vault: `az keyvault secret show --vault-name <kv> --name admin-password --query value -o tsv`) y pulsar *Sincronizar lecturas*.
+
 ## Qué crea el script
 
 | Recurso | Nombre |
