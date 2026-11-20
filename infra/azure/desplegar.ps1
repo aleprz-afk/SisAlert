@@ -31,7 +31,13 @@ param(
     [string]$GeminiApiKey = "",
     # 0 = frontend, identidad e IA se apagan sin tráfico (más barato). 1 = siempre encendidos.
     [ValidateSet(0, 1)]
-    [int]$ReplicasMinimas = 0
+    [int]$ReplicasMinimas = 0,
+    # PostgreSQL en otra región (vacío = la misma que -Region) y con otro tamaño, si el
+    # predeterminado (Standard_B1ms, el más barato) no está disponible para la suscripción.
+    [string]$PostgresRegion = "",
+    [string]$PostgresSku = "Standard_B1ms",
+    [ValidateSet("Burstable", "GeneralPurpose", "MemoryOptimized")]
+    [string]$PostgresTier = "Burstable"
 )
 
 # "Continue" a propósito: en Windows PowerShell 5.1, con "Stop", cualquier aviso que az o docker
@@ -75,9 +81,16 @@ if ($LASTEXITCODE -ne 0 -or -not $etiqueta) { $etiqueta = Get-Date -Format "yyyy
 Ok "Versión a desplegar: $etiqueta"
 
 # ---------------------------------------------------------------------------
-Paso "Grupo de recursos $Grupo en $Region"
-Ejecutar "crear grupo de recursos" { az group create --name $Grupo --location $Region --tags proyecto=sisalert ambiente=demo -o none }
-Ok "Listo"
+Paso "Grupo de recursos $Grupo"
+# Si ya existe (por ejemplo, de un intento anterior en otra región) se reutiliza: la región del
+# grupo no limita la de sus recursos, que se crean en -Region.
+$grupoExiste = az group exists --name $Grupo
+if ("$grupoExiste".Trim() -eq "true") {
+    Ok "Ya existe; los recursos se crearán en $Region"
+} else {
+    Ejecutar "crear grupo de recursos" { az group create --name $Grupo --location $Region --tags proyecto=sisalert ambiente=demo -o none }
+    Ok "Creado en $Region"
+}
 
 # ---------------------------------------------------------------------------
 Paso "Secretos"
@@ -115,6 +128,9 @@ $parametros = @{
         imageTag            = @{ value = $etiqueta }
         deployerPrincipalId = @{ value = $usuarioId }
         replicasMinimas     = @{ value = $ReplicasMinimas }
+        postgresLocation    = @{ value = $PostgresRegion }
+        postgresSku         = @{ value = $PostgresSku }
+        postgresTier        = @{ value = $PostgresTier }
         dbAdminPassword     = @{ value = $secretos["db-admin-password"] }
         alertasDbPassword   = @{ value = $secretos["alertas-db-password"] }
         identidadDbPassword = @{ value = $secretos["identidad-db-password"] }
@@ -131,7 +147,20 @@ function Desplegar-Bicep([string]$fase, [bool]$conApps) {
     $resultado = az deployment group create --resource-group $Grupo --name "sisalert-$fase" `
         --template-file $plantilla --parameters "@$archivoParametros" --parameters desplegarApps=$($conApps.ToString().ToLower()) `
         --query properties.outputs -o json
-    if ($LASTEXITCODE -ne 0) { throw "Falló el despliegue de Bicep ($fase). Revise el mensaje de Azure arriba." }
+    if ($LASTEXITCODE -ne 0) {
+        # Error más común en suscripciones de estudiante: la región no está permitida.
+        $permitidas = az policy assignment list --query "[].parameters.listOfAllowedLocations.value" -o tsv 2>$null
+        if ($permitidas) {
+            $lista = (($permitidas -split "\s+") | Where-Object { $_ } | Sort-Object -Unique) -join ", "
+            Write-Host "`n    Si el error dice 'RequestDisallowedByAzure' o 'RequestDisallowedByPolicy', la región $Region" -ForegroundColor Yellow
+            Write-Host "    no está permitida. Regiones permitidas en esta suscripción: $lista" -ForegroundColor Yellow
+            Write-Host "    Vuelva a ejecutar con una de ellas, por ejemplo: .\infra\azure\desplegar.ps1 -Region <region>" -ForegroundColor Yellow
+        }
+        Write-Host "    Si el error dice 'SkuNotAvailable' en PostgreSQL, ese tamaño no está disponible en la región." -ForegroundColor Yellow
+        Write-Host "    Ver los disponibles:  az postgres flexible-server list-skus --location <region> -o table" -ForegroundColor Yellow
+        Write-Host "    Y repetir con:        -PostgresRegion <region> o -PostgresSku <tamaño>" -ForegroundColor Yellow
+        throw "Falló el despliegue de Bicep ($fase). Revise el mensaje de Azure arriba."
+    }
     return ($resultado | Out-String | ConvertFrom-Json)
 }
 

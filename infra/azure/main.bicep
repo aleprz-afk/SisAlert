@@ -27,6 +27,16 @@ param deployerPrincipalId string = ''
 @maxValue(1)
 param replicasMinimas int = 0
 
+@description('Región de PostgreSQL si debe ser distinta (vacío = la misma que el resto). Útil cuando el tamaño elegido no está disponible en la región principal.')
+param postgresLocation string = ''
+
+@description('Tamaño de PostgreSQL. Standard_B1ms es el más barato; en algunas suscripciones de estudiante no está disponible en todas las regiones (ver: az postgres flexible-server list-skus --location <region> -o table).')
+param postgresSku string = 'Standard_B1ms'
+
+@description('Nivel del tamaño anterior: Burstable (B1ms, B2s...), GeneralPurpose (D...) o MemoryOptimized (E...).')
+@allowed([ 'Burstable', 'GeneralPurpose', 'MemoryOptimized' ])
+param postgresTier string = 'Burstable'
+
 @secure()
 param dbAdminPassword string
 @secure()
@@ -104,11 +114,11 @@ resource acrPull 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 // ---------------------------------------------------------------------------
 resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
   name: 'pg-sisalert-${sufijo}'
-  location: location
+  location: empty(postgresLocation) ? location : postgresLocation
   tags: etiquetas
   sku: {
-    name: 'Standard_B1ms'
-    tier: 'Burstable'
+    name: postgresSku
+    tier: postgresTier
   }
   properties: {
     version: '16'
