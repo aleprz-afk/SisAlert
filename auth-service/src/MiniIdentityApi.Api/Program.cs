@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -107,6 +108,26 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+// Health checks para Azure Container Apps (sondas de vida y de disponibilidad):
+//   /health        -> el proceso responde (no toca la base)
+//   /health/ready  -> además puede consultar PostgreSQL
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<IdentityDbContext>("postgresql", tags: ["ready"]);
+
+// Detrás del proxy de Azure (y del nginx del frontend) la conexión llega por HTTP desde el
+// proxy: se leen X-Forwarded-For / X-Forwarded-Proto para conocer la IP real del cliente
+// (la usa el límite de intentos de login) y el esquema original (https).
+// Proxy__SaltosConfiables = cuántos proxies propios hay delante (Azure + nginx = 2).
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = builder.Configuration.GetValue("Proxy:SaltosConfiables", 1);
+    // Las IP internas de Azure cambian; la protección contra encabezados falsos la da
+    // ForwardLimit (solo se confía en los últimos saltos, que agrega nuestra infraestructura).
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 // Límite de intentos para login y registro, por dirección IP: frena la fuerza bruta
 // de contraseñas y la creación masiva de cuentas. Configurable con RateLimit__IntentosPorMinuto.
 var intentosPorMinuto = builder.Configuration.GetValue("RateLimit:IntentosPorMinuto", 10);
@@ -143,6 +164,8 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
         .WithHeaders("Authorization", "Content-Type")));
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
@@ -199,11 +222,20 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// Sin UseHttpsRedirection: en Azure el HTTPS lo termina el ingreso de Container Apps (que ya
+// redirige HTTP -> HTTPS) y entre contenedores el tráfico es interno.
 app.UseCors();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false,
+});
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+});
 
 app.Run();

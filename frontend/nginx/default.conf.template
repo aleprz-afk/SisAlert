@@ -1,0 +1,90 @@
+# SisAlert · servidor de producción del frontend (nginx).
+#
+# Hace en producción lo mismo que el proxy de Vite en desarrollo:
+#   /               -> la aplicación React compilada (npm run build)
+#   /auth-api/...   -> API de identidad      (se quita el prefijo)
+#   /alertas-api/.. -> microservicio de alertas (se quita el prefijo)
+#
+# Así el navegador solo habla con un origen (sin CORS) y SOLO este contenedor es público:
+# en Azure, identidad, alertas e IA quedan con ingreso interno.
+#
+# La imagen oficial de nginx reemplaza las variables ${...} al arrancar (envsubst):
+#   PORT             puerto en el que escucha (p. ej. 8080)
+#   AUTH_API_URL     URL interna de la API de identidad, sin "/" final
+#                    (Azure: https://auth-service.internal.<entorno>.<region>.azurecontainerapps.io)
+#   ALERTAS_API_URL  URL interna del microservicio de alertas, sin "/" final
+
+# Esquema original de la petición: el ingreso de Azure termina el HTTPS y avisa con
+# X-Forwarded-Proto; en local (sin proxy delante) se usa el de la conexión.
+map $http_x_forwarded_proto $esquema_original {
+    default $http_x_forwarded_proto;
+    ""      $scheme;
+}
+
+# IP del cliente: se reenvía la lista que puso el ingreso de Azure, sin agregar la IP de nginx.
+# La API de identidad confía en los últimos Proxy__SaltosConfiables saltos (2 en Azure: el
+# ingreso público, que agrega la IP real del cliente, y el ingreso interno). Sin proxy delante
+# (Docker Compose local), la IP es la de la conexión.
+map $http_x_forwarded_for $ip_cliente {
+    default $http_x_forwarded_for;
+    ""      $remote_addr;
+}
+
+server {
+    listen ${PORT};
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    server_tokens off;            # no revela la versión de nginx
+    client_max_body_size 1m;      # la API solo recibe JSON pequeños
+
+    # --- Encabezados de seguridad (heredados por todas las rutas sin add_header propio) ---
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    # CSP: scripts propios + Leaflet desde unpkg (con integridad SRI en index.html), mosaicos
+    # del mapa desde OpenStreetMap, y llamadas a la API solo al mismo origen.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https://unpkg.com https://*.tile.openstreetmap.org; connect-src 'self'; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    # Sonda de vida del contenedor.
+    location = /health {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok";
+    }
+
+    location /auth-api/ {
+        proxy_pass ${AUTH_API_URL}/;
+        proxy_ssl_server_name on;   # SNI hacia el ingreso interno de Azure (HTTPS)
+        proxy_set_header X-Forwarded-For $ip_cliente;
+        proxy_set_header X-Forwarded-Proto $esquema_original;
+        proxy_read_timeout 30s;
+    }
+
+    location /alertas-api/ {
+        proxy_pass ${ALERTAS_API_URL}/;
+        proxy_ssl_server_name on;
+        proxy_set_header X-Forwarded-For $ip_cliente;
+        proxy_set_header X-Forwarded-Proto $esquema_original;
+        proxy_read_timeout 60s;     # sincronizar consulta fuentes externas y la IA
+    }
+
+    # Archivos con hash en el nombre (Vite): se pueden guardar en caché un año.
+    location /assets/ {
+        expires 1y;
+        access_log off;
+    }
+
+    # Aplicación de una sola página: cualquier otra ruta (/estaciones, /alertas...) carga
+    # index.html y React Router decide. index.html nunca se guarda en caché.
+    location / {
+        try_files $uri $uri/ /index.html;
+        expires -1;
+    }
+}

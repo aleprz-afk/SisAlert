@@ -30,6 +30,15 @@ Toda la comunicación es HTTP/REST con JSON. El navegador solo habla con el fron
 | `/alertas-api/...` | `http://localhost:8081/...` |
  
 Más detalle en `docs/infraestructura.md`, `docs/aplicacion.md` y `docs/modelo-datos.md`.
+
+### Arquitectura en la nube (entregables del proyecto final)
+
+| Entregable | Documento |
+|---|---|
+| 1. Arquitectura de infraestructura en la nube (Azure) | [`docs/arquitectura-nube.md`](docs/arquitectura-nube.md) |
+| 2. Arquitectura de la aplicación (cloud-native) | [`docs/arquitectura-aplicacion.md`](docs/arquitectura-aplicacion.md) |
+| 3. Arquitectura de datos | [`docs/arquitectura-datos.md`](docs/arquitectura-datos.md) |
+| IA: ficha del modelo y boletines | [`docs/ia.md`](docs/ia.md) |
  
 ## Estructura del repositorio
  
@@ -252,6 +261,25 @@ La regla de umbral dice cómo está cada zona **hoy**. El servicio de IA **antic
 - **IA generativa:** Gemini redacta un boletín para la comunidad de cada zona en alerta. Solo se llama cuando cambia el estado de la zona, recibe únicamente datos estructurados y, si falla, se usa una plantilla.
 
 Ficha completa, con métricas, comparación de modelos y limitaciones: [`docs/ia.md`](docs/ia.md).
+
+## Listo para producción (Azure)
+
+| Pieza | Dónde |
+|---|---|
+| Frontend servido por nginx, que reenvía las APIs (sin CORS; **único servicio público**) y agrega encabezados de seguridad (CSP, HSTS, `X-Frame-Options`) | `frontend/nginx/default.conf.template` |
+| Sondas de salud: identidad `/health` y `/health/ready`; alertas `/actuator/health/liveness` y `/readiness`; IA `/health`; frontend `/health` | Cada servicio |
+| Detrás de un proxy: `X-Forwarded-*` en identidad (`Proxy__SaltosConfiables`) y en alertas (perfil prod) | `Program.cs`, `application-prod.properties` |
+| Puerto configurable (`PORT`) y apagado ordenado en alertas | `application.properties` |
+| Variables de todos los servicios | [`.env.example`](.env.example) |
+
+Para probar el frontend de producción en local, con las APIs corriendo:
+
+```powershell
+cd frontend; npm run build
+docker run --rm -p 8088:8080 -e PORT=8080 -e AUTH_API_URL=http://host.docker.internal:5132 -e ALERTAS_API_URL=http://host.docker.internal:8081 -v "${PWD}\dist:/usr/share/nginx/html:ro" -v "${PWD}\nginx:/etc/nginx/templates:ro" nginx:1.27-alpine
+```
+
+Luego se abre http://localhost:8088.
 
 ## Endpoints del microservicio de alertas
 
