@@ -45,7 +45,8 @@ builder.Services.AddSwaggerGen(options =>
 var connectionString = builder.Configuration.GetConnectionString("Identity")
     ?? "Host=localhost;Port=5432;Database=sisalert;Username=sisalert;Password=sisalert";
 
-builder.Services.AddDbContext<IdentityDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddDbContext<IdentityDbContext>(options => options.UseNpgsql(connectionString,
+        npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", IdentityDbContext.EsquemaHistorial)));
 
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<IRoleRepository, EfRoleRepository>();

@@ -17,6 +17,7 @@ namespace MiniIdentityApi.Infrastructure.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
+                .HasDefaultSchema("identidad")
                 .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
@@ -46,7 +47,7 @@ namespace MiniIdentityApi.Infrastructure.Persistence.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("permisos", (string)null);
+                    b.ToTable("permisos", "identidad");
                 });
 
             modelBuilder.Entity("MiniIdentityApi.Domain.Entities.Role", b =>
@@ -67,7 +68,7 @@ namespace MiniIdentityApi.Infrastructure.Persistence.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("roles", (string)null);
+                    b.ToTable("roles", "identidad");
                 });
 
             modelBuilder.Entity("MiniIdentityApi.Domain.Entities.User", b =>
@@ -101,7 +102,7 @@ namespace MiniIdentityApi.Infrastructure.Persistence.Migrations
                     b.HasIndex("Username")
                         .IsUnique();
 
-                    b.ToTable("usuarios", (string)null);
+                    b.ToTable("usuarios", "identidad");
                 });
 
             modelBuilder.Entity("roles_permisos", b =>
@@ -116,7 +117,7 @@ namespace MiniIdentityApi.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("permiso_id");
 
-                    b.ToTable("roles_permisos");
+                    b.ToTable("roles_permisos", "identidad");
                 });
 
             modelBuilder.Entity("usuarios_roles", b =>
@@ -131,7 +132,7 @@ namespace MiniIdentityApi.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("rol_id");
 
-                    b.ToTable("usuarios_roles");
+                    b.ToTable("usuarios_roles", "identidad");
                 });
 
             modelBuilder.Entity("MiniIdentityApi.Domain.Entities.User", b =>
@@ -159,7 +160,7 @@ namespace MiniIdentityApi.Infrastructure.Persistence.Migrations
 
                             b1.HasKey("UserId");
 
-                            b1.ToTable("usuarios");
+                            b1.ToTable("usuarios", "identidad");
 
                             b1.WithOwner()
                                 .HasForeignKey("UserId");
