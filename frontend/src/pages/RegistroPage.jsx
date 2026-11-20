@@ -17,6 +17,10 @@ export default function RegistroPage() {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    if (form.password.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres')
+      return
+    }
     if (form.password !== form.confirmar) {
       setError('Las contraseñas no coinciden')
       return
@@ -48,7 +52,7 @@ export default function RegistroPage() {
         </label>
         <label>
           Contraseña
-          <input name="password" type="password" value={form.password} onChange={cambiar} required />
+          <input name="password" type="password" value={form.password} onChange={cambiar} required minLength={8} />
         </label>
         <label>
           Confirmar contraseña

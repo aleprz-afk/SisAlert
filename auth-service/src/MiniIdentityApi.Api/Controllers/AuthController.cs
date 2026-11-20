@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using MiniIdentityApi.Application.DTOs.Auth;
 using MiniIdentityApi.Application.Services;
 
@@ -6,6 +7,7 @@ namespace MiniIdentityApi.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[EnableRateLimiting(PoliticasLimite.Autenticacion)]
 public class AuthController : ControllerBase
 {
     private readonly AuthenticationService _authenticationService;

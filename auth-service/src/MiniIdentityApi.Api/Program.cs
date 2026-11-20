@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using MiniIdentityApi.Api;
 using MiniIdentityApi.Api.Middleware;
 using MiniIdentityApi.Application.Interfaces;
 using MiniIdentityApi.Application.Services;
@@ -10,6 +11,9 @@ using MiniIdentityApi.Infrastructure.Persistence;
 using MiniIdentityApi.Infrastructure.Repositories;
 using MiniIdentityApi.Infrastructure.Security;
 using System.Text;
+using System.Text.Json;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,7 +56,8 @@ builder.Services.AddDbContext<IdentityDbContext>(options => options.UseNpgsql(co
 
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<IRoleRepository, EfRoleRepository>();
-builder.Services.AddSingleton<IPasswordHasher, Sha256PasswordHasher>();
+// PBKDF2; los hashes SHA-256 anteriores se aceptan y se actualizan en el siguiente login.
+builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddSingleton<ITokenService, JwtTokenService>();
 
 builder.Services.AddScoped<AuthenticationService>();
@@ -93,6 +98,41 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+
+// Límite de intentos para login y registro, por dirección IP: frena la fuerza bruta
+// de contraseñas y la creación masiva de cuentas. Configurable con RateLimit__IntentosPorMinuto.
+var intentosPorMinuto = builder.Configuration.GetValue("RateLimit:IntentosPorMinuto", 10);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(PoliticasLimite.Autenticacion, context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = intentosPorMinuto,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json; charset=utf-8";
+        await context.HttpContext.Response.WriteAsync(JsonSerializer.Serialize(new
+        {
+            error = "DEMASIADOS_INTENTOS",
+            mensaje = "Demasiados intentos. Espere un minuto e intente de nuevo."
+        }), cancellationToken);
+    };
+});
+
+// CORS solo para los orígenes configurados (Cors__Origenes, separados por comas).
+// Si no se configura ninguno, no se habilita CORS: el frontend llega por el mismo origen (proxy).
+var origenesCors = (builder.Configuration["Cors:Origenes"] ?? "")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+    policy.WithOrigins(origenesCors)
+        .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
+        .WithHeaders("Authorization", "Content-Type")));
 
 var app = builder.Build();
 
@@ -152,6 +192,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

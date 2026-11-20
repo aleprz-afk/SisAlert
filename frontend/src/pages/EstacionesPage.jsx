@@ -8,11 +8,13 @@ import ChipModoDemo from '../components/ChipModoDemo'
 import MapaVillavicencio from '../components/MapaVillavicencio'
 import ModalHistoricoZona from '../components/ModalHistoricoZona'
 import { getAlertas, sincronizar } from '../api/alertasApi'
+import { useAuth } from '../context/useAuth'
 import { fechaLocal, milimetros } from '../utils/formato'
 
 const INTERVALO_MS = 5000
 
 export default function EstacionesPage() {
+  const { esAdmin } = useAuth()
   const [zonas, setZonas] = useState([])
   const [zonaHistorico, setZonaHistorico] = useState(null)
   const [error, setError] = useState(null)
@@ -73,6 +75,9 @@ export default function EstacionesPage() {
         </div>
         <div className="acciones-tablero">
           <ChipModoDemo onReintentar={refrescar} />
+          {/* Sincronizar a mano es solo para administradores; el monitoreo automático
+              actualiza los datos para todos. */}
+          {esAdmin && (
           <button
             type="button"
             className="btn-primario"
@@ -81,6 +86,7 @@ export default function EstacionesPage() {
           >
             {sincronizando ? 'Sincronizando…' : 'Sincronizar lecturas'}
           </button>
+          )}
         </div>
       </header>
 
