@@ -73,8 +73,20 @@ if ($LASTEXITCODE -ne 0) { throw "Docker no está corriendo: abra Docker Desktop
 $suscripcion = az account show --query name -o tsv 2>$null
 if ($LASTEXITCODE -ne 0 -or -not $suscripcion) { throw "No hay sesión de Azure: ejecute 'az login'." }
 Ok "Suscripción: $suscripcion"
+# Id (objectId) de quien despliega, para darle permiso de leer los secretos en Key Vault.
+# En cuentas de estudiante 'az ad signed-in-user show' a veces falla; el token de la sesión
+# siempre trae el id en el campo "oid".
 $usuarioId = az ad signed-in-user show --query id -o tsv 2>$null
-if ($LASTEXITCODE -ne 0) { $usuarioId = "" }
+if ($LASTEXITCODE -ne 0 -or -not $usuarioId) {
+    $usuarioId = ""
+    $token = az account get-access-token --query accessToken -o tsv 2>$null
+    if ($LASTEXITCODE -eq 0 -and $token) {
+        $carga = $token.Split(".")[1].Replace("-", "+").Replace("_", "/")
+        while ($carga.Length % 4) { $carga += "=" }
+        $usuarioId = ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($carga)) | ConvertFrom-Json).oid
+    }
+}
+if ($usuarioId) { Ok "Usuario que despliega: $usuarioId" } else { Write-Host "    No se pudo obtener el id del usuario; no podrá releer los secretos en próximas ejecuciones." -ForegroundColor Yellow }
 
 $etiqueta = (git -C $raiz rev-parse --short HEAD 2>$null)
 if ($LASTEXITCODE -ne 0 -or -not $etiqueta) { $etiqueta = Get-Date -Format "yyyyMMddHHmm" }
@@ -97,18 +109,29 @@ Paso "Secretos"
 $secretos = @{}
 $nombres = "db-admin-password", "alertas-db-password", "identidad-db-password", "jwt-key", "admin-password", "ai-api-key"
 $kvExistente = az keyvault list --resource-group $Grupo --query "[0].name" -o tsv 2>$null
+$completos = $false
 if ($kvExistente) {
+    $completos = $true
     foreach ($n in $nombres) {
         $valor = az keyvault secret show --vault-name $kvExistente --name $n --query value -o tsv 2>$null
-        if ($LASTEXITCODE -ne 0 -or -not $valor) { throw "No se pudo leer el secreto '$n' de $kvExistente. ¿La cuenta tiene el rol 'Key Vault Secrets Officer'?" }
+        if ($LASTEXITCODE -ne 0 -or -not $valor) { $completos = $false; break }
         $secretos[$n] = $valor
     }
+}
+if ($completos) {
     if (-not $GeminiApiKey) {
         $g = az keyvault secret show --vault-name $kvExistente --name "gemini-api-key" --query value -o tsv 2>$null
         if ($LASTEXITCODE -eq 0 -and $g) { $GeminiApiKey = $g }
     }
     Ok "Reutilizando los secretos de $kvExistente"
 } else {
+    if ($kvExistente) {
+        # Pasa si un intento anterior se cortó a mitad o si aún no había permiso de lectura.
+        # Se generan nuevos: Bicep los guarda en Key Vault y el paso de la base sincroniza las
+        # contraseñas de alertas_app e identidad_app, así que nada queda desalineado.
+        Write-Host "    No se pudieron leer los secretos de $kvExistente (intento anterior incompleto o sin permiso); se generan nuevos." -ForegroundColor Yellow
+    }
+    $secretos = @{}
     $secretos["db-admin-password"] = "Pg-" + (Nuevo-Secreto)
     $secretos["alertas-db-password"] = Nuevo-Secreto
     $secretos["identidad-db-password"] = Nuevo-Secreto
@@ -215,7 +238,16 @@ try {
     }
     if ($LASTEXITCODE -ne 0) { throw "No se pudo conectar a PostgreSQL desde este equipo." }
     if ("$existentes".Trim() -eq "2") {
-        Ok "Los usuarios alertas_app e identidad_app ya existen"
+        # Ya existen: se les vuelve a poner la contraseña de Key Vault, por si los secretos se
+        # regeneraron en esta ejecución (la base y los servicios quedan siempre alineados).
+        $sincronizar = "ALTER ROLE alertas_app PASSWORD :'alertas_pass'; ALTER ROLE identidad_app PASSWORD :'identidad_pass';"
+        $sincronizar | docker run -i --rm -e "PGPASSWORD=$($secretos['db-admin-password'])" postgres:16-alpine `
+            psql $conexion -v ON_ERROR_STOP=1 `
+            -v "alertas_pass=$($secretos['alertas-db-password'])" `
+            -v "identidad_pass=$($secretos['identidad-db-password'])" `
+            -q -f -
+        if ($LASTEXITCODE -ne 0) { throw "No se pudieron sincronizar las contraseñas de alertas_app e identidad_app." }
+        Ok "Los usuarios alertas_app e identidad_app ya existen; contraseñas sincronizadas con Key Vault"
     } else {
         Ejecutar "crear usuarios de la base" {
             docker run --rm -e "PGPASSWORD=$($secretos['db-admin-password'])" -v "$(Join-Path $raiz 'infra\db'):/sql:ro" postgres:16-alpine `
