@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import co.edu.unillanos.sisalert.alertas.repository.AlertaRepository;
+import co.edu.unillanos.sisalert.alertas.repository.BoletinRepository;
 import co.edu.unillanos.sisalert.alertas.repository.LecturaRepository;
 import co.edu.unillanos.sisalert.alertas.repository.PrediccionRiesgoRepository;
 
@@ -31,6 +32,7 @@ public class RetencionDatosService {
     private final LecturaRepository lecturaRepository;
     private final AlertaRepository alertaRepository;
     private final PrediccionRiesgoRepository prediccionRepository;
+    private final BoletinRepository boletinRepository;
     private final int diasLecturas;
     private final int diasAlertas;
     private final Clock reloj;
@@ -40,17 +42,20 @@ public class RetencionDatosService {
             LecturaRepository lecturaRepository,
             AlertaRepository alertaRepository,
             PrediccionRiesgoRepository prediccionRepository,
+            BoletinRepository boletinRepository,
             @Value("${alertas.retencion.lecturas-dias:365}") int diasLecturas,
             @Value("${alertas.retencion.alertas-dias:730}") int diasAlertas) {
-        this(lecturaRepository, alertaRepository, prediccionRepository, diasLecturas, diasAlertas,
-                Clock.systemDefaultZone());
+        this(lecturaRepository, alertaRepository, prediccionRepository, boletinRepository, diasLecturas,
+                diasAlertas, Clock.systemDefaultZone());
     }
 
     RetencionDatosService(LecturaRepository lecturaRepository, AlertaRepository alertaRepository,
-            PrediccionRiesgoRepository prediccionRepository, int diasLecturas, int diasAlertas, Clock reloj) {
+            PrediccionRiesgoRepository prediccionRepository, BoletinRepository boletinRepository,
+            int diasLecturas, int diasAlertas, Clock reloj) {
         this.lecturaRepository = lecturaRepository;
         this.alertaRepository = alertaRepository;
         this.prediccionRepository = prediccionRepository;
+        this.boletinRepository = boletinRepository;
         this.diasLecturas = diasLecturas;
         this.diasAlertas = diasAlertas;
         this.reloj = reloj;
@@ -71,6 +76,8 @@ public class RetencionDatosService {
         if (diasAlertas > 0) {
             int borradas = alertaRepository.borrarHistoricasAnterioresA(ahora.minusDays(diasAlertas));
             log.info("[RETENCIÓN] Alertas históricas de más de {} días borradas: {}", diasAlertas, borradas);
+            int boletines = boletinRepository.borrarAnterioresA(ahora.minusDays(diasAlertas));
+            log.info("[RETENCIÓN] Boletines de más de {} días borrados: {}", diasAlertas, boletines);
         }
     }
 }

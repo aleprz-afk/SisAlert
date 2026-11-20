@@ -30,6 +30,7 @@ public class AlertaService {
     private final AlertaRepository alertaRepository;
     private final LecturaRepository lecturaRepository;
     private final PrediccionRiesgoRepository prediccionRepository;
+    private final BoletinService boletinService;
 
     private static final Logger log = LoggerFactory.getLogger(AlertaService.class);
     private static final TypeReference<List<PrediccionIa.Factor>> LISTA_FACTORES = new TypeReference<>() { };
@@ -38,11 +39,13 @@ public class AlertaService {
     public AlertaService(ZonaRepository zonaRepository,
                          AlertaRepository alertaRepository,
                          LecturaRepository lecturaRepository,
-                         PrediccionRiesgoRepository prediccionRepository) {
+                         PrediccionRiesgoRepository prediccionRepository,
+                         BoletinService boletinService) {
         this.zonaRepository = zonaRepository;
         this.alertaRepository = alertaRepository;
         this.lecturaRepository = lecturaRepository;
         this.prediccionRepository = prediccionRepository;
+        this.boletinService = boletinService;
     }
 
     /** Una entrada por zona con su alerta vigente (o nulos si aún no hay datos). */
@@ -57,13 +60,14 @@ public class AlertaService {
         RiesgoIaDto riesgoIa = riesgoIa(zona);
         if (alerta == null) {
             return new AlertaDto(zona.getId(), zona.getNombre(), zona.getCuerpoAgua(),
-                    zona.getComunidades(), null, null, null, null, riesgoIa);
+                    zona.getComunidades(), null, null, null, null, riesgoIa, null);
         }
         Double mm = lecturaRepository.findFirstByZonaIdOrderByFechaHoraDescIdDesc(zona.getId())
                 .map(Lectura::getPrecipitacionMm)
                 .orElse(null);
         return new AlertaDto(zona.getId(), zona.getNombre(), zona.getCuerpoAgua(),
-                zona.getComunidades(), alerta.getNivel(), alerta.getMensaje(), mm, alerta.getFechaHora(), riesgoIa);
+                zona.getComunidades(), alerta.getNivel(), alerta.getMensaje(), mm, alerta.getFechaHora(), riesgoIa,
+                boletinService.vigente(zona, alerta.getNivel()));
     }
 
     private RiesgoIaDto riesgoIa(Zona zona) {

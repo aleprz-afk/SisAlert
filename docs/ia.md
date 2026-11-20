@@ -116,7 +116,28 @@ La **versión 1** usaba solo la lluvia pasada y tenía más datos (2015–2025, 
 - Calibrar por zona.
 - Probar el pronóstico de varios modelos meteorológicos (ECMWF, GFS).
 
-## 8. Cómo reproducirlo
+## 8. IA generativa: boletín para la comunidad (Gemini)
+
+El modelo predictivo **decide**. La IA generativa **comunica**: convierte el estado técnico de una zona en alerta en un mensaje en lenguaje sencillo para sus habitantes. Por ejemplo, para Guayuriba Sur en peligro:
+
+> *"Vecinos de Apiay, Catumare y Playa Rica: el río Guayuriba puede crecer en las próximas horas…"*
+
+| Decisión | Por qué |
+|---|---|
+| Solo zonas en PRECAUCIÓN o PELIGRO | En NORMAL no hay nada que comunicar y se ahorran llamadas |
+| Se pide un boletín nuevo **solo cuando cambia el estado** de la zona (nivel y riesgo de la IA) y se guarda en la tabla `boletin` (migración V4) | Con 3 zonas son unas pocas llamadas al día, aunque el monitoreo sincronice cada pocos minutos |
+| Modelo Flash-Lite, máximo unas 70 palabras, temperatura baja | Es el modelo más barato y rápido; respuestas cortas y sobrias |
+| Gemini recibe **solo datos estructurados** (zona, comunidades, nivel, mm, riesgo y factores de la IA), con las instrucciones aparte, y nunca texto escrito por usuarios | Evita que alguien le inyecte instrucciones; el texto no puede inventar cifras que no estén en los datos |
+| Sin clave, sin cuota o con error → **plantilla fija** con los mismos datos. Si salió la plantilla, se reintenta con Gemini cada 30 minutos | La alerta nunca depende de Gemini |
+| En la simulación del administrador, los boletines se guardan en memoria, una vez por zona y estado | No se llama a Gemini en cada actualización de la pantalla |
+
+Configuración (en `ai-service`):
+- `GEMINI_API_KEY`: clave de Google AI Studio.
+- `GEMINI_MODEL`: por defecto `gemini-flash-lite-latest`.
+
+`GET /health` indica si los boletines salen de `gemini` o de `plantilla`. En el plan gratuito de Google AI Studio, Google puede usar lo enviado para mejorar sus productos. Aquí solo se envían datos del clima y nombres de barrios, nunca datos personales.
+
+## 9. Cómo reproducirlo
 
 ```powershell
 cd ai-service

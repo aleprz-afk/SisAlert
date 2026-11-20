@@ -35,17 +35,20 @@ public class SimulacionService {
     private final ZonaRepository zonaRepository;
     private final ReglaDeUmbral regla;
     private final ClientePrediccionIa clienteIa;
+    private final BoletinService boletinService;
     private final double umbralPrecaucion;
     private final double umbralPeligro;
 
     public SimulacionService(ZonaRepository zonaRepository,
                              ReglaDeUmbral regla,
                              ClientePrediccionIa clienteIa,
+                             BoletinService boletinService,
                              @Value("${alertas.umbral.precaucion-mm}") double umbralPrecaucion,
                              @Value("${alertas.umbral.peligro-mm}") double umbralPeligro) {
         this.zonaRepository = zonaRepository;
         this.regla = regla;
         this.clienteIa = clienteIa;
+        this.boletinService = boletinService;
         this.umbralPrecaucion = umbralPrecaucion;
         this.umbralPeligro = umbralPeligro;
     }
@@ -67,11 +70,11 @@ public class SimulacionService {
         LocalDateTime ahora = LocalDateTime.now();
 
         return zonaRepository.findAll(Sort.by("id")).stream()
-                .map(zona -> simularZona(zona, fuente, ahora))
+                .map(zona -> simularZona(zona, fuente, nombre, ahora))
                 .toList();
     }
 
-    private AlertaDto simularZona(Zona zona, ClienteEscenario fuente, LocalDateTime ahora) {
+    private AlertaDto simularZona(Zona zona, ClienteEscenario fuente, String escenario, LocalDateTime ahora) {
         double mm = fuente.precipitacionAcumuladaMm(zona.getCodigoEstacion());
         NivelAlerta nivel = regla.evaluar(mm);
         // La IA también se consulta en vivo con la serie del escenario (no se guarda).
@@ -82,6 +85,7 @@ public class SimulacionService {
                 .map(p -> new RiesgoIaDto(p.riesgo(), p.probabilidad(), p.factores(), p.versionModelo(), ahora))
                 .orElse(null);
         return new AlertaDto(zona.getId(), zona.getNombre(), zona.getCuerpoAgua(), zona.getComunidades(),
-                nivel, regla.mensajePara(nivel), mm, ahora, riesgoIa);
+                nivel, regla.mensajePara(nivel), mm, ahora, riesgoIa,
+                boletinService.simulado(zona, nivel, mm, prediccion.orElse(null), escenario));
     }
 }
