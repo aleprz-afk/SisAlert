@@ -89,7 +89,10 @@ public class ClienteOpenMeteo implements ClienteDatosExternos {
         } catch (FuenteExternaException e) {
             throw e;
         } catch (Exception e) {
-            throw new FuenteExternaException("Error al consultar datos meteorológicos reales de " + codigoEstacion, e);
+            // Se incluye la causa (p. ej. HttpTimeoutException, ConnectException) para poder
+            // diagnosticar desde los logs de Azure por qué no respondió la fuente.
+            throw new FuenteExternaException("Error al consultar datos meteorológicos reales de " + codigoEstacion
+                    + " (" + e.getClass().getSimpleName() + ": " + e.getMessage() + ")", e);
         }
     }
 

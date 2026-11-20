@@ -245,12 +245,12 @@ resource entorno 'Microsoft.App/managedEnvironments@2024-03-01' = {
   }
 }
 
-// Nombres y direcciones predecibles (evitan dependencias circulares entre apps).
-var dominio = entorno.properties.defaultDomain
-var urlFrontend = 'https://ca-frontend.${dominio}'
-var urlAuthInterna = 'https://ca-auth.internal.${dominio}'
-var urlAlertasInterna = 'https://ca-alertas.internal.${dominio}'
-var urlIaInterna = 'https://ca-ai.internal.${dominio}'
+// Dirección pública del frontend, armada con el dominio del entorno: alertas la necesita para
+// CORS y el frontend se crea después de alertas (evita una dependencia circular).
+// Las direcciones de los servicios internos NO se arman a mano: se toman de cada Container App
+// (ingress.fqdn), porque su formato cambia según el tipo de entorno (en los entornos "Express"
+// no llevan ".internal.").
+var urlFrontend = 'https://ca-frontend.${entorno.properties.defaultDomain}'
 
 var registro = [
   {
@@ -421,7 +421,7 @@ resource appAlertas 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApps
             { name: 'DB_PASSWORD', secretRef: 'alertas-db-password' }
             { name: 'Jwt__Key', secretRef: 'jwt-key' }
             { name: 'ALERTAS_CORS_ORIGENES', value: urlFrontend }
-            { name: 'AI_SERVICE_URL', value: urlIaInterna }
+            { name: 'AI_SERVICE_URL', value: 'https://${appIa!.properties.configuration.ingress.fqdn}' }
             { name: 'AI_API_KEY', secretRef: 'ai-api-key' }
           ]
           probes: sondas(8081, '/actuator/health/liveness', '/actuator/health/readiness')
@@ -461,8 +461,8 @@ resource appFrontend 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApp
           resources: { cpu: json('0.25'), memory: '0.5Gi' }
           env: [
             { name: 'PORT', value: '8080' }
-            { name: 'AUTH_API_URL', value: urlAuthInterna }
-            { name: 'ALERTAS_API_URL', value: urlAlertasInterna }
+            { name: 'AUTH_API_URL', value: 'https://${appAuth!.properties.configuration.ingress.fqdn}' }
+            { name: 'ALERTAS_API_URL', value: 'https://${appAlertas!.properties.configuration.ingress.fqdn}' }
           ]
           probes: sondas(8080, '/health', '/health')
         }
@@ -477,4 +477,4 @@ output acrServidor string = acr.properties.loginServer
 output postgresServidor string = postgres.properties.fullyQualifiedDomainName
 output postgresNombre string = postgres.name
 output keyVaultNombre string = kv.name
-output urlPublica string = urlFrontend
+output urlPublica string = desplegarApps ? 'https://${appFrontend!.properties.configuration.ingress.fqdn}' : urlFrontend
