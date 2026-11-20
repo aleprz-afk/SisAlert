@@ -50,7 +50,15 @@ flowchart TB
 
 ## 3. Red y seguridad
 
-- **Un solo punto de entrada público:** el ingreso del `frontend`, con TLS gestionado por Azure. Identidad, alertas e IA tienen ingreso **interno**: no se pueden alcanzar desde Internet.
+- **Punto de entrada de los usuarios:** el ingreso del `frontend`, con TLS gestionado por Azure. El navegador solo habla con él.
+- **Identidad, alertas e IA: internos o públicos según el tipo de entorno.**
+  - **Diseño objetivo (entorno estándar):** ingreso **interno**; el frontend los llama por su nombre corto (`http://ca-auth`) y no se pueden alcanzar desde Internet.
+  - **Despliegue actual (entorno *Express*):** las suscripciones de estudiante crean el entorno en modo *Express* (`environmentMode = Express`, fijo al crearlo). Ese modo no admite `allowInsecure` ni deja llamar a una app interna por su dirección completa, así que se usa el **plan B** (`desplegar.ps1 -ServiciosPublicos`): ingreso público solo por **HTTPS**.
+  - **Con el plan B, cada servicio se protege solo**, comprobado en el despliegue:
+    - alertas exige JWT con roles (`401` sin token);
+    - la IA exige `X-Api-Key` (`401` sin clave);
+    - identidad solo expone login y registro, con límite de intentos, y Swagger está apagado (`404`).
+  - **Para volver al diseño objetivo** basta con crear el entorno en modo estándar y desplegar sin `-ServiciosPublicos`.
 - **El navegador solo habla con un origen.** nginx reenvía `/auth-api` y `/alertas-api` a los servicios internos, así que no hay CORS en producción.
 - **Base de datos:**
   - SSL obligatorio. alertas-service se niega a arrancar si `DB_URL` no lo pide.

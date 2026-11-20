@@ -41,6 +41,9 @@ param postgresSku string = 'Standard_B1ms'
 @allowed([ 'Burstable', 'GeneralPurpose', 'MemoryOptimized' ])
 param postgresTier string = 'Burstable'
 
+@description('false (recomendado) = identidad, alertas e IA solo accesibles desde dentro del entorno, por su nombre corto (http://ca-auth). true = plan B: también públicos (protegidos por JWT y X-Api-Key), si el entorno no permite la llamada interna.')
+param serviciosPublicos bool = false
+
 @secure()
 param dbAdminPassword string
 @secure()
@@ -247,10 +250,25 @@ resource entorno 'Microsoft.App/managedEnvironments@2024-03-01' = {
 
 // Dirección pública del frontend, armada con el dominio del entorno: alertas la necesita para
 // CORS y el frontend se crea después de alertas (evita una dependencia circular).
-// Las direcciones de los servicios internos NO se arman a mano: se toman de cada Container App
-// (ingress.fqdn), porque su formato cambia según el tipo de entorno (en los entornos "Express"
-// no llevan ".internal.").
 var urlFrontend = 'https://ca-frontend.${entorno.properties.defaultDomain}'
+
+// Cómo se llaman los servicios entre sí:
+//  - Internos (por defecto): por el NOMBRE CORTO de la app (http://ca-auth). Es la forma directa
+//    entre apps del mismo entorno; la dirección completa pasa por el balanceador interno, que en
+//    los entornos "Express" responde 404 a las apps internas. El tráfico no sale del entorno.
+//  - Públicos (plan B, serviciosPublicos=true): por su dirección https completa.
+// Ingreso de identidad, alertas e IA.
+//  - Internos: allowInsecure=true para que la llamada por nombre corto (HTTP dentro del entorno)
+//    no se redirija a HTTPS.
+//  - Públicos (plan B): HTTPS obligatorio y SIN la propiedad allowInsecure, porque los entornos
+//    "Express" la rechazan aunque valga false (ExpressAllowInsecureNotSupported).
+func ingresoServicio(publico bool, puerto int) object => union({
+  external: publico
+  targetPort: puerto
+  transport: 'auto'
+}, publico ? {} : { allowInsecure: true })
+
+func urlServicio(publico bool, nombreApp string, fqdn string) string => publico ? 'https://${fqdn}' : 'http://${nombreApp}'
 
 var registro = [
   {
@@ -308,11 +326,7 @@ resource appAuth 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApps) {
   properties: {
     managedEnvironmentId: entorno.id
     configuration: {
-      ingress: {
-        external: false
-        targetPort: 8080
-        transport: 'auto'
-      }
+      ingress: ingresoServicio(serviciosPublicos, 8080)
       registries: registro
       secrets: [
         secreto('identidad-connection', cadenaIdentidad)
@@ -361,11 +375,7 @@ resource appIa 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApps) {
   properties: {
     managedEnvironmentId: entorno.id
     configuration: {
-      ingress: {
-        external: false
-        targetPort: 8000
-        transport: 'auto'
-      }
+      ingress: ingresoServicio(serviciosPublicos, 8000)
       registries: registro
       secrets: secretosIa
     }
@@ -396,11 +406,7 @@ resource appAlertas 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApps
   properties: {
     managedEnvironmentId: entorno.id
     configuration: {
-      ingress: {
-        external: false
-        targetPort: 8081
-        transport: 'auto'
-      }
+      ingress: ingresoServicio(serviciosPublicos, 8081)
       registries: registro
       secrets: [
         secreto('alertas-db-password', alertasDbPassword)
@@ -421,7 +427,7 @@ resource appAlertas 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApps
             { name: 'DB_PASSWORD', secretRef: 'alertas-db-password' }
             { name: 'Jwt__Key', secretRef: 'jwt-key' }
             { name: 'ALERTAS_CORS_ORIGENES', value: urlFrontend }
-            { name: 'AI_SERVICE_URL', value: 'https://${appIa!.properties.configuration.ingress.fqdn}' }
+            { name: 'AI_SERVICE_URL', value: urlServicio(serviciosPublicos, 'ca-ai', appIa!.properties.configuration.ingress.fqdn) }
             { name: 'AI_API_KEY', secretRef: 'ai-api-key' }
           ]
           probes: sondas(8081, '/actuator/health/liveness', '/actuator/health/readiness')
@@ -449,7 +455,8 @@ resource appFrontend 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApp
         external: true
         targetPort: 8080
         transport: 'auto'
-        allowInsecure: false // HTTP se redirige a HTTPS
+        // Sin allowInsecure: por defecto HTTP se redirige a HTTPS (y los entornos Express no
+        // aceptan la propiedad).
       }
       registries: registro
     }
@@ -461,8 +468,8 @@ resource appFrontend 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApp
           resources: { cpu: json('0.25'), memory: '0.5Gi' }
           env: [
             { name: 'PORT', value: '8080' }
-            { name: 'AUTH_API_URL', value: 'https://${appAuth!.properties.configuration.ingress.fqdn}' }
-            { name: 'ALERTAS_API_URL', value: 'https://${appAlertas!.properties.configuration.ingress.fqdn}' }
+            { name: 'AUTH_API_URL', value: urlServicio(serviciosPublicos, 'ca-auth', appAuth!.properties.configuration.ingress.fqdn) }
+            { name: 'ALERTAS_API_URL', value: urlServicio(serviciosPublicos, 'ca-alertas', appAlertas!.properties.configuration.ingress.fqdn) }
           ]
           probes: sondas(8080, '/health', '/health')
         }
