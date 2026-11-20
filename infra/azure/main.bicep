@@ -263,11 +263,13 @@ var identidadApps = {
   userAssignedIdentities: { '${identidad.id}': {} }
 }
 
-// Referencia a un secreto de Key Vault (el contenedor lo lee con la identidad administrada).
-func secretoKv(nombreApp string, vaultUri string, idIdentidad string) object => {
-  name: nombreApp
-  keyVaultUrl: '${vaultUri}secrets/${nombreApp}'
-  identity: idIdentidad
+// Secretos de cada Container App. Key Vault es la fuente de verdad (el script los lee de ahí en
+// cada despliegue), pero se entregan a los contenedores como secretos cifrados de Container Apps
+// con su valor: los entornos "Express" de Container Apps (los que crean algunas suscripciones de
+// estudiante) no admiten referencias a Key Vault (error ExpressKeyVaultSecretsNotSupported).
+func secreto(nombre string, valor string) object => {
+  name: nombre
+  value: valor
 }
 
 // Sondas HTTP para Container Apps.
@@ -313,9 +315,9 @@ resource appAuth 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApps) {
       }
       registries: registro
       secrets: [
-        secretoKv('identidad-connection', kv.properties.vaultUri, identidad.id)
-        secretoKv('jwt-key', kv.properties.vaultUri, identidad.id)
-        secretoKv('admin-password', kv.properties.vaultUri, identidad.id)
+        secreto('identidad-connection', cadenaIdentidad)
+        secreto('jwt-key', jwtKey)
+        secreto('admin-password', adminPassword)
       ]
     }
     template: {
@@ -347,8 +349,8 @@ var envIa = concat([
   { name: 'AI_API_KEY', secretRef: 'ai-api-key' }
 ], conGemini ? [ { name: 'GEMINI_API_KEY', secretRef: 'gemini-api-key' } ] : [])
 var secretosIa = concat([
-  secretoKv('ai-api-key', kv.properties.vaultUri, identidad.id)
-], conGemini ? [ secretoKv('gemini-api-key', kv.properties.vaultUri, identidad.id) ] : [])
+  secreto('ai-api-key', aiApiKey)
+], conGemini ? [ secreto('gemini-api-key', geminiApiKey) ] : [])
 
 resource appIa 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApps) {
   name: 'ca-ai'
@@ -401,9 +403,9 @@ resource appAlertas 'Microsoft.App/containerApps@2024-03-01' = if (desplegarApps
       }
       registries: registro
       secrets: [
-        secretoKv('alertas-db-password', kv.properties.vaultUri, identidad.id)
-        secretoKv('jwt-key', kv.properties.vaultUri, identidad.id)
-        secretoKv('ai-api-key', kv.properties.vaultUri, identidad.id)
+        secreto('alertas-db-password', alertasDbPassword)
+        secreto('jwt-key', jwtKey)
+        secreto('ai-api-key', aiApiKey)
       ]
     }
     template: {

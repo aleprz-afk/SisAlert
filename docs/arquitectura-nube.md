@@ -44,7 +44,7 @@ flowchart TB
 | `alertas-service` | Microservicio de alertas (Spring Boot) | **Ingreso interno**. **1 réplica fija**: el monitoreo automático corre dentro del proceso y con 2 réplicas sincronizaría dos veces |
 | `ai-service` | Modelo predictivo y boletines (FastAPI) | **Ingreso interno** y `X-Api-Key`. 1 a 2 réplicas |
 | **Azure Database for PostgreSQL Flexible Server** | Base `sisalert`, esquemas `alertas` e `identidad` | Plan Burstable B1ms, SSL obligatorio, copias automáticas (7 días), firewall solo para servicios de Azure |
-| **Key Vault** | Clave JWT, contraseñas de la base, contraseña inicial de admin, `AI_API_KEY`, `GEMINI_API_KEY` | Los Container Apps los leen con su identidad administrada, sin credenciales en el código |
+| **Key Vault** | Clave JWT, contraseñas de la base, contraseña inicial de admin, `AI_API_KEY`, `GEMINI_API_KEY` | Fuente de verdad de los secretos. El script de despliegue los lee de ahí y se los entrega a cada Container App como **secretos cifrados de Container Apps** (el entorno *Express* que crean algunas suscripciones de estudiante no admite referencias directas a Key Vault). Nunca pasan por el repositorio |
 | **Container Registry** | Imágenes de los 4 servicios, etiquetadas por commit | Plan Basic |
 | **Log Analytics** | Logs de todos los contenedores | Las apps escriben en la consola y Azure los recoge |
 
@@ -55,7 +55,7 @@ flowchart TB
 - **Base de datos:**
   - SSL obligatorio. alertas-service se niega a arrancar si `DB_URL` no lo pide.
   - Un usuario por servicio, con permisos solo sobre su esquema (`infra/db/usuarios-por-servicio.sql`).
-- **Secretos:** solo en Key Vault y nunca en el repositorio. En producción, si falta uno, el servicio no arranca y dice cuál falta.
+- **Secretos:** se guardan en Key Vault y llegan a los contenedores como secretos cifrados de Container Apps; nunca pasan por el repositorio. En producción, si falta uno, el servicio no arranca y dice cuál falta.
 - **Encabezados de seguridad del frontend:** CSP restrictiva, `X-Frame-Options: DENY`, HSTS y `nosniff`. nginx no revela su versión.
 - **Aplicación:**
   - JWT validado en alertas-service, con roles.
@@ -75,7 +75,7 @@ Si se cae la base, la sonda de disponibilidad falla: Azure deja de enviarle trá
 
 ## 5. Variables por servicio
 
-Todas salen de `.env.example`. Los valores sensibles se configuran como referencias a Key Vault.
+Todas salen de `.env.example`. Los valores sensibles salen de Key Vault y se configuran como secretos cifrados de cada Container App.
 
 | Servicio | Variables |
 |---|---|
@@ -84,7 +84,7 @@ Todas salen de `.env.example`. Los valores sensibles se configuran como referenc
 | alertas-service | `SPRING_PROFILES_ACTIVE=prod`, `DB_URL`, `DB_USER`, `DB_PASSWORD` 🔒, `Jwt__Key` 🔒, `ALERTAS_CORS_ORIGENES`, `AI_SERVICE_URL`, `AI_API_KEY` 🔒 |
 | ai-service | `AI_API_KEY` 🔒, `GEMINI_API_KEY` 🔒 (opcional) |
 
-🔒 = secreto en Key Vault.
+🔒 = secreto: guardado en Key Vault y entregado como secreto cifrado de Container Apps.
 
 ## 6. Escalado y disponibilidad
 
