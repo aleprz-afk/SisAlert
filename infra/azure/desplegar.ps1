@@ -35,6 +35,9 @@ param(
     # PostgreSQL en otra región (vacío = la misma que -Region) y con otro tamaño, si el
     # predeterminado (Standard_B1ms, el más barato) no está disponible para la suscripción.
     [string]$PostgresRegion = "",
+    # Otro nombre para el servidor PostgreSQL (vacío = pg-sisalert-<sufijo>), por si un intento
+    # fallido dejó el nombre bloqueado en otra región (error InvalidResourceLocation).
+    [string]$PostgresNombre = "",
     [string]$PostgresSku = "Standard_B1ms",
     [ValidateSet("Burstable", "GeneralPurpose", "MemoryOptimized")]
     [string]$PostgresTier = "Burstable"
@@ -152,6 +155,7 @@ $parametros = @{
         deployerPrincipalId = @{ value = $usuarioId }
         replicasMinimas     = @{ value = $ReplicasMinimas }
         postgresLocation    = @{ value = $PostgresRegion }
+        postgresNombre      = @{ value = $PostgresNombre }
         postgresSku         = @{ value = $PostgresSku }
         postgresTier        = @{ value = $PostgresTier }
         dbAdminPassword     = @{ value = $secretos["db-admin-password"] }

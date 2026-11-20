@@ -78,6 +78,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 | `-GeminiApiKey "AIza..."` | Activa los boletines con Gemini. Sin ella se usa la plantilla |
 | `-PostgresRegion westus` | Crea PostgreSQL en otra región (el resto queda en `-Region`). Sirve si Azure responde `SkuNotAvailable` para la base |
 | `-PostgresSku Standard_B2s` | Otro tamaño de PostgreSQL si el más barato (`Standard_B1ms`) no está disponible. Para ver cuáles hay: `az postgres flexible-server list-skus --location <region> -o table` |
+| `-PostgresNombre pg-sisalert-2` | Otro nombre para el servidor PostgreSQL, si un intento fallido dejó el nombre reservado (`InvalidResourceLocation`). **Una vez que funcione, usar siempre el mismo nombre** en las siguientes ejecuciones |
 | `-ReplicasMinimas 1` | Frontend, identidad e IA siempre encendidos. Para el día de la sustentación |
 
 Al final muestra la **URL pública** y cómo ver la contraseña de `admin`.
@@ -101,6 +102,7 @@ Con todo encendido el costo estimado es de **USD 20 a 35 al mes**. Pausado, solo
 |---|---|
 | `RequestDisallowedByAzure`, `RequestDisallowedByPolicy` o `LocationNotAvailableForResourceType` | La región no está permitida para la suscripción. El script muestra la lista de regiones permitidas; volver a ejecutar con una de ellas: `-Region <region>`. No hace falta borrar nada |
 | `SkuNotAvailable` en `pg-sisalert-...` | Ese tamaño de PostgreSQL no está disponible en la región para la suscripción. Revisar los disponibles con `az postgres flexible-server list-skus --location <region> -o table` y repetir con `-PostgresRegion` o `-PostgresSku` |
+| `InvalidResourceLocation` (*already exists in location ...*) en `pg-sisalert-...` | Un intento fallido dejó ese nombre reservado en otra región. Repetir con otro nombre: `-PostgresNombre pg-sisalert-2` (o esperar a que Azure libere el nombre) |
 | `MissingSubscriptionRegistration` | Falta habilitar un servicio: repetir el paso 2 y esperar unos minutos |
 | `Docker no está corriendo` | Abrir Docker Desktop y esperar a que diga *Engine running* |
 | `No se pudo leer el secreto ...` | La cuenta que ejecuta no es la que desplegó la primera vez. Debe ejecutarlo el dueño de la suscripción |
