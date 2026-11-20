@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/useAuth'
+import BannerEmergencia from './BannerEmergencia'
 
 export default function Layout() {
   const { usuario, logout } = useAuth()
@@ -18,6 +19,7 @@ export default function Layout() {
           <button className="btn-secundario" onClick={logout}>Salir</button>
         </div>
       </header>
+      <BannerEmergencia />
       <main className="contenido">
         <Outlet />
       </main>

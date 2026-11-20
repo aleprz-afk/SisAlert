@@ -33,11 +33,11 @@ public class ClienteOpenMeteo implements ClienteDatosExternos {
 
     private record Coordenada(double lat, double lon) {}
 
-    // Coordenadas geográficas exactas de las estaciones en Villavicencio
+    // Coordenadas geográficas exactas de los sectores urbanos de riesgo en Villavicencio (POMCA)
     private static final Map<String, Coordenada> COORDENADAS = Map.of(
-            "0035035100", new Coordenada(4.1372, -73.6250), // ICA Villavicencio (Guatiquía Norte)
-            "3502700090", new Coordenada(3.9585, -73.2710), // Río Guayuriba Sur
-            "0035025110", new Coordenada(4.0574, -73.4679)  // La Libertad (Caño Grande Centro)
+            "0035035100", new Coordenada(4.1485, -73.6340), // Guatiquía Norte (Barzal / Siete de Agosto)
+            "3502700090", new Coordenada(4.0750, -73.6550), // Guayuriba Sur (Catumare / Porfía)
+            "0035025110", new Coordenada(4.1280, -73.6260)  // Caño Grande / Maizaro (Villacentro / Porvenir)
     );
 
     private final HttpClient http;

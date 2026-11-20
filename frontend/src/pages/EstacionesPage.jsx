@@ -5,6 +5,8 @@
 
 import { useEffect, useState } from 'react'
 import ChipModoDemo from '../components/ChipModoDemo'
+import MapaVillavicencio from '../components/MapaVillavicencio'
+import ModalHistoricoZona from '../components/ModalHistoricoZona'
 import { getAlertas, sincronizar } from '../api/alertasApi'
 import { fechaLocal, milimetros } from '../utils/formato'
 
@@ -12,6 +14,7 @@ const INTERVALO_MS = 5000
 
 export default function EstacionesPage() {
   const [zonas, setZonas] = useState([])
+  const [zonaHistorico, setZonaHistorico] = useState(null)
   const [error, setError] = useState(null)
   const [cargando, setCargando] = useState(true)
   const [sincronizando, setSincronizando] = useState(false)
@@ -107,6 +110,8 @@ export default function EstacionesPage() {
         </p>
       )}
 
+      {zonas.length > 0 && <MapaVillavicencio zonas={zonas} />}
+
       {zonas.length > 0 && (
         <div className="zonas-grid">
           {zonas.map((z) => (
@@ -134,9 +139,26 @@ export default function EstacionesPage() {
               </div>
 
               <p className="alerta-meta">Comunidades: {z.comunidades}</p>
+
+              <div className="zona-pie-acciones">
+                <button
+                  type="button"
+                  className="btn-ver-tendencia"
+                  onClick={() => setZonaHistorico(z)}
+                >
+                  📊 Ver Tendencia 24h e Historial
+                </button>
+              </div>
             </article>
           ))}
         </div>
+      )}
+
+      {zonaHistorico && (
+        <ModalHistoricoZona
+          zona={zonaHistorico}
+          onClose={() => setZonaHistorico(null)}
+        />
       )}
 
       {error && zonas.length > 0 && <p className="error">No se pudo actualizar: {error}</p>}

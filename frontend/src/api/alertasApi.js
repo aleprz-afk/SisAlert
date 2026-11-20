@@ -120,6 +120,18 @@ export const sincronizar = async () => {
   return normalizar(datos)
 }
 
+// Consulta las mediciones históricas recientes de una cuenca (últimas 20 lecturas)
+export const getHistoricoZona = async (zonaId) => {
+  if (usandoMock) {
+    return []
+  }
+  try {
+    return await apiFetch(`${BASE}/lecturas/zonas/${zonaId}/historico`)
+  } catch {
+    return []
+  }
+}
+
 export const enModoDemostracion = () => usandoMock
 
 // Vuelve a intentar contra el servicio real (no hace nada si el mock está forzado).
