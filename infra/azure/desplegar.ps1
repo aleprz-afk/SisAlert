@@ -228,8 +228,9 @@ try {
     $miIp = (Invoke-RestMethod -Uri "https://api.ipify.org" -TimeoutSec 15 -ErrorAction Stop).ToString().Trim()
     $reglaTemporal = "despliegue-temporal"
     Ejecutar "abrir firewall temporal" {
-        az postgres flexible-server firewall-rule create --resource-group $Grupo --name $pgNombre `
-            --rule-name $reglaTemporal --start-ip-address $miIp --end-ip-address $miIp -o none
+        # Sintaxis actual de Azure CLI: --server-name = servidor, --name = regla.
+        az postgres flexible-server firewall-rule create --resource-group $Grupo --server-name $pgNombre `
+            --name $reglaTemporal --start-ip-address $miIp --end-ip-address $miIp -o none
     }
     $conexion = "host=$pgHost port=5432 dbname=sisalert user=sisadmin sslmode=require"
     $existentes = $null
@@ -264,9 +265,17 @@ try {
     }
 } finally {
     if ($reglaTemporal) {
-        az postgres flexible-server firewall-rule delete --resource-group $Grupo --name $pgNombre `
-            --rule-name $reglaTemporal --yes -o none 2>$null
-        Ok "Firewall temporal cerrado"
+        $existe = az postgres flexible-server firewall-rule show --resource-group $Grupo --server-name $pgNombre `
+            --name $reglaTemporal --query name -o tsv 2>$null
+        if ($LASTEXITCODE -eq 0 -and $existe) {
+            az postgres flexible-server firewall-rule delete --resource-group $Grupo --server-name $pgNombre `
+                --name $reglaTemporal --yes -o none 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Ok "Firewall temporal cerrado"
+            } else {
+                Write-Host "    No se pudo cerrar la regla '$reglaTemporal'. Bórrela en el portal: servidor PostgreSQL > Redes." -ForegroundColor Yellow
+            }
+        }
     }
 }
 
