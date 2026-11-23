@@ -67,7 +67,7 @@ services:
       DB_USER: alertas_app
       DB_PASSWORD: ${ALERTAS_DB_PASSWORD}
       Jwt__Key: ${JWT_KEY}
-      ALERTAS_CORS_ORIGENES: http://localhost:${FRONTEND_PUERTO:-8080}
+      ALERTAS_CORS_ORIGENES: ${ALERTAS_CORS_ORIGENES:-http://localhost:${FRONTEND_PUERTO:-8080}}
       AI_SERVICE_URL: http://ai:8000
       AI_API_KEY: ${AI_API_KEY}
       ALERTAS_FUENTE: ${ALERTAS_FUENTE:-open-meteo}
