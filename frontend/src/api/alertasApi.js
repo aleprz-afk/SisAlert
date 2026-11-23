@@ -105,10 +105,16 @@ export function normalizar(lista) {
   }))
 }
 
-export const getAlertas = async () =>
-  normalizar(
+// escenario (solo Admin): si viene, se consulta la simulación del backend, que calcula
+// semáforo e IA al vuelo para ese escenario sin guardar nada. Sin escenario, datos reales.
+export const getAlertas = async (escenario = null) => {
+  if (escenario) {
+    return normalizar(await apiFetch(`${BASE}/simulacion/${encodeURIComponent(escenario)}`))
+  }
+  return normalizar(
     await ejecutar(() => apiFetch(`${BASE}/alertas`), () => mock.listarAlertas()),
   )
+}
 
 // La operación de escritura del MVP: el servicio registra lecturas y recalcula alertas.
 // Si el backend falla, no se enmascara con mock a menos que ya esté en modo demostración.
@@ -118,6 +124,18 @@ export const sincronizar = async () => {
   }
   const datos = await apiFetch(`${BASE}/lecturas/sincronizar`, { method: 'POST' })
   return normalizar(datos)
+}
+
+// Consulta las mediciones históricas recientes de una cuenca (últimas 20 lecturas)
+export const getHistoricoZona = async (zonaId) => {
+  if (usandoMock) {
+    return []
+  }
+  try {
+    return await apiFetch(`${BASE}/lecturas/zonas/${zonaId}/historico`)
+  } catch {
+    return []
+  }
 }
 
 export const enModoDemostracion = () => usandoMock

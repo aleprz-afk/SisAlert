@@ -1,0 +1,10 @@
+.venv/
+data/
+training/
+tests/
+**/__pycache__/
+.pytest_cache/
+requirements-dev.txt
+.git
+Dockerfile
+.dockerignore

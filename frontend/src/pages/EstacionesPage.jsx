@@ -5,13 +5,22 @@
 
 import { useEffect, useState } from 'react'
 import ChipModoDemo from '../components/ChipModoDemo'
+import MapaVillavicencio from '../components/MapaVillavicencio'
+import ModalHistoricoZona from '../components/ModalHistoricoZona'
+import Boletin from '../components/Boletin'
+import RiesgoIa from '../components/RiesgoIa'
 import { getAlertas, sincronizar } from '../api/alertasApi'
+import { useAuth } from '../context/useAuth'
+import { useSimulacion } from '../context/useSimulacion'
 import { fechaLocal, milimetros } from '../utils/formato'
 
 const INTERVALO_MS = 5000
 
 export default function EstacionesPage() {
+  const { esAdmin } = useAuth()
+  const { escenario } = useSimulacion()
   const [zonas, setZonas] = useState([])
+  const [zonaHistorico, setZonaHistorico] = useState(null)
   const [error, setError] = useState(null)
   const [cargando, setCargando] = useState(true)
   const [sincronizando, setSincronizando] = useState(false)
@@ -25,7 +34,7 @@ export default function EstacionesPage() {
 
     async function traer() {
       try {
-        const datos = await getAlertas()
+        const datos = await getAlertas(escenario)
         if (!cancelado) {
           setZonas(datos)
           setError(null)
@@ -43,7 +52,7 @@ export default function EstacionesPage() {
       cancelado = true
       clearInterval(id)
     }
-  }, [intento])
+  }, [intento, escenario])
 
   async function onSincronizar() {
     setSincronizando(true)
@@ -70,6 +79,9 @@ export default function EstacionesPage() {
         </div>
         <div className="acciones-tablero">
           <ChipModoDemo onReintentar={refrescar} />
+          {/* Sincronizar a mano es solo para administradores; el monitoreo automático
+              actualiza los datos para todos. */}
+          {esAdmin && !escenario && (
           <button
             type="button"
             className="btn-primario"
@@ -78,6 +90,7 @@ export default function EstacionesPage() {
           >
             {sincronizando ? 'Sincronizando…' : 'Sincronizar lecturas'}
           </button>
+          )}
         </div>
       </header>
 
@@ -107,6 +120,8 @@ export default function EstacionesPage() {
         </p>
       )}
 
+      {zonas.length > 0 && <MapaVillavicencio zonas={zonas} />}
+
       {zonas.length > 0 && (
         <div className="zonas-grid">
           {zonas.map((z) => (
@@ -133,10 +148,30 @@ export default function EstacionesPage() {
                 </div>
               </div>
 
+              <RiesgoIa riesgoIa={z.riesgoIa} />
+              <Boletin boletin={z.boletin} />
+
               <p className="alerta-meta">Comunidades: {z.comunidades}</p>
+
+              <div className="zona-pie-acciones">
+                <button
+                  type="button"
+                  className="btn-ver-tendencia"
+                  onClick={() => setZonaHistorico(z)}
+                >
+                  📊 Ver Tendencia 24h e Historial
+                </button>
+              </div>
             </article>
           ))}
         </div>
+      )}
+
+      {zonaHistorico && (
+        <ModalHistoricoZona
+          zona={zonaHistorico}
+          onClose={() => setZonaHistorico(null)}
+        />
       )}
 
       {error && zonas.length > 0 && <p className="error">No se pudo actualizar: {error}</p>}

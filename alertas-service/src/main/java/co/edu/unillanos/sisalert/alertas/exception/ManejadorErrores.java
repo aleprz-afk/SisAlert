@@ -6,9 +6,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class ManejadorErrores {
@@ -35,6 +37,22 @@ public class ManejadorErrores {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
                 "error", "CONFLICTO",
                 "mensaje", ex.getMessage()));
+    }
+
+    /** JSON mal formado o con tipos incorrectos: mismo formato de error que el resto del servicio. */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, String>> cuerpoIlegible(HttpMessageNotReadableException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                "error", "SOLICITUD_INVALIDA",
+                "mensaje", "El cuerpo de la solicitud no es un JSON válido."));
+    }
+
+    /** Parámetro de ruta con tipo incorrecto, por ejemplo /api/zonas/abc. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, String>> tipoInvalido(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                "error", "SOLICITUD_INVALIDA",
+                "mensaje", "El parámetro '" + ex.getName() + "' no tiene un valor válido."));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

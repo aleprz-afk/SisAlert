@@ -18,7 +18,8 @@ public class CorsConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
                 .allowedOrigins(origenes)
-                .allowedMethods("GET", "POST", "OPTIONS")
+                // PUT y DELETE los usa el CRUD de zonas cuando el frontend llama sin proxy.
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*");
     }
 }

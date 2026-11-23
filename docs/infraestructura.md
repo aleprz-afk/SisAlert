@@ -6,6 +6,8 @@
 
 ---
 
+> **Este documento describe la ejecución local (desarrollo).** La arquitectura de producción en Azure está en [`arquitectura-nube.md`](arquitectura-nube.md), y las de aplicación y datos en [`arquitectura-aplicacion.md`](arquitectura-aplicacion.md) y [`arquitectura-datos.md`](arquitectura-datos.md).
+
 ## 1. Objetivo
 
 Describir qué piezas de software componen el MVP, dónde se ejecuta cada una, en qué puerto, cómo se comunican y qué se necesita instalar para correrlas.
@@ -144,7 +146,11 @@ Ambos servicios comparten la misma instancia de PostgreSQL pero cada uno es due�
 - La autenticación la resuelve la API de autenticación con token JWT.
 - El frontend guarda el token en `sessionStorage` y lo envía en el encabezado `Authorization` a partir del login.
 - No se guardan contraseñas ni claves de servicios externos en el repositorio. Si la fuente externa requiere una clave, se lee desde una variable de entorno.
-- El microservicio de alertas **no valida el token** en esta etapa; el PDF no lo exige. Queda como mejora para la entrega final.
+- **Configuración por ambiente.** Cada servicio tiene un modo de desarrollo (perfil `dev` en Spring, `Development` en .NET) con valores locales de prueba, y un modo de producción en el que la clave JWT (`Jwt__Key`), las cadenas de conexión (`DB_*`, `ConnectionStrings__Identity`), la contraseña inicial de admin (`Seed__AdminPassword`) y los orígenes CORS solo llegan por variables de entorno. En Azure esas variables se alimentan de Key Vault. La plantilla está en `.env.example`.
+- **Falla temprana.** En producción, si falta una variable obligatoria o la clave JWT tiene menos de 32 caracteres, el servicio no arranca y el error dice qué falta; nunca usa un valor de demostración.
+- En producción no se publica Swagger y los errores no devuelven detalles internos.
+- El microservicio de alertas **valida el token** en cada petición: firma HS256 con la clave compartida, emisor, audiencia y vencimiento. Consultar exige sesión; sincronizar y modificar zonas exige el rol `Admin`.
+- Contraseñas con PBKDF2-SHA256 (600.000 iteraciones), mínimo 8 caracteres y máximo 10 intentos de login por minuto por IP.
 
 ---
 
@@ -164,7 +170,6 @@ Ambos servicios comparten la misma instancia de PostgreSQL pero cada uno es due�
 ## 9. Limitaciones conocidas
 
 - Si la fuente externa no responde, el microservicio devuelve un error controlado y conserva las alertas existentes.
-- El microservicio de alertas no valida la firma del JWT: identifica al usuario para el log, pero no bloquea peticiones sin token. Queda como mejora pendiente.
 - No hay despliegue en servidor; la demostración es local con PostgreSQL en Docker.
 
 ---

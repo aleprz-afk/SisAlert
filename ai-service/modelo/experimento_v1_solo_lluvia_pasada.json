@@ -1,0 +1,128 @@
+{
+  "version": "1.0.0",
+  "entrenado": "2026-11-20T03:00:26+00:00",
+  "pregunta": "P(lluvia >= 40 mm en las próximas 24 h)",
+  "umbral_mm": 40.0,
+  "horizonte_horas": 24,
+  "modelo_elegido": "boosting",
+  "datos": {
+    "fuente": "Open-Meteo Historical Weather API (reanálisis ERA5/ERA5-Land), lluvia horaria",
+    "estaciones": [
+      "0035035100",
+      "3502700090"
+    ],
+    "periodos": {
+      "entrenamiento": "2015-2022",
+      "validacion": "2023",
+      "prueba": "2024-2025"
+    },
+    "filas": {
+      "entrenamiento": 139922,
+      "validacion": 17520,
+      "prueba": 35040
+    },
+    "tasa_eventos": {
+      "entrenamiento": 0.0387,
+      "validacion": 0.0241,
+      "prueba": 0.0326
+    }
+  },
+  "bandas_riesgo": {
+    "MEDIO": 0.0096,
+    "ALTO": 0.2327,
+    "criterio": "MEDIO detecta al menos el 80 % de los eventos en validación; ALTO maximiza F1 en validación"
+  },
+  "prueba_modelo_elegido": {
+    "general": {
+      "roc_auc": 0.7558,
+      "pr_auc": 0.0924
+    },
+    "banda_MEDIO": {
+      "roc_auc": 0.7558,
+      "pr_auc": 0.0924,
+      "precision": 0.0512,
+      "recall": 0.8766,
+      "f1": 0.0968
+    },
+    "banda_ALTO": {
+      "roc_auc": 0.7558,
+      "pr_auc": 0.0924,
+      "precision": 0.1139,
+      "recall": 0.084,
+      "f1": 0.0967
+    },
+    "brier": 0.0325,
+    "brier_climatologia": 0.0305
+  },
+  "comparacion": {
+    "persistencia": {
+      "validacion": {
+        "roc_auc": 0.6813,
+        "pr_auc": 0.0556,
+        "precision": 0.0673,
+        "recall": 0.3853,
+        "f1": 0.1146
+      },
+      "prueba": {
+        "roc_auc": 0.7003,
+        "pr_auc": 0.0677,
+        "precision": 0.0679,
+        "recall": 0.3535,
+        "f1": 0.1139
+      }
+    },
+    "climatologia": {
+      "validacion": {
+        "roc_auc": 0.7066,
+        "pr_auc": 0.0534,
+        "precision": 0.0773,
+        "recall": 0.2719,
+        "f1": 0.1204
+      },
+      "prueba": {
+        "roc_auc": 0.7613,
+        "pr_auc": 0.0796,
+        "precision": 0.0931,
+        "recall": 0.2423,
+        "f1": 0.1345
+      }
+    },
+    "logistica": {
+      "validacion": {
+        "roc_auc": 0.7411,
+        "pr_auc": 0.0675,
+        "precision": 0.0938,
+        "recall": 0.1324,
+        "f1": 0.1098
+      },
+      "prueba": {
+        "roc_auc": 0.7783,
+        "pr_auc": 0.113,
+        "precision": 0.1166,
+        "recall": 0.2135,
+        "f1": 0.1509
+      }
+    },
+    "boosting": {
+      "validacion": {
+        "roc_auc": 0.715,
+        "pr_auc": 0.0967,
+        "precision": 0.2166,
+        "recall": 0.1111,
+        "f1": 0.1469
+      },
+      "prueba": {
+        "roc_auc": 0.7558,
+        "pr_auc": 0.0924,
+        "precision": 0.1139,
+        "recall": 0.084,
+        "f1": 0.0967
+      }
+    }
+  },
+  "versiones": {
+    "scikit-learn": "1.9.1",
+    "numpy": "2.5.5",
+    "pandas": "3.1.1"
+  }
+}

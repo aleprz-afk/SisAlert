@@ -71,7 +71,7 @@ Dato de precipitación obtenido de la fuente externa para una zona en un momento
 | `id` | Long | Sí | Identificador, generado automáticamente |
 | `zonaId` | Long | Sí | Zona a la que pertenece (clave foránea a `ZONA`) |
 | `precipitacionMm` | Decimal | Sí | Lluvia acumulada del día, en milímetros. Debe ser mayor o igual a 0 |
-| `fechaHora` | Fecha y hora | Sí | Momento de la medición según la fuente |
+| `fechaHora` | Fecha y hora | Sí | Momento en que se sincronizó la lectura (la fuente entrega el acumulado del día, no la hora de la medición) |
 | `fuente` | Texto (50) | Sí | Nombre de la fuente de datos (por ejemplo, IDEAM) |
 
 ### 3.3 ALERTA
@@ -181,6 +181,9 @@ spring.flyway.enabled=true
 ```
 
 - El esquema lo crea y versiona **Flyway** con los archivos de `src/main/resources/db/migration` (`V1__esquema_inicial.sql`, `V2__crud_zonas.sql`).
+- Las tablas viven en el esquema de PostgreSQL **`alertas`**; la API de identidad usa el esquema **`identidad`** en la misma base. Ningún servicio lee las tablas del otro.
+- En la nube cada servicio se conecta con su propio usuario (`alertas_app`, `identidad_app`), con permisos solo sobre su esquema (`infra/db/usuarios-por-servicio.sql`), y siempre con SSL.
+- **Retención:** una tarea diaria borra las lecturas de más de 365 días y las alertas no vigentes de más de 730 días; la alerta vigente de cada zona nunca se borra.
 - `ddl-auto=validate` hace que Hibernate solo compruebe que las entidades coincidan con las tablas; nunca las modifica.
 - Las migraciones se aplican solas al arrancar. La tabla `flyway_schema_history` registra la versión aplicada.
 - Las pruebas unitarias usan H2 en memoria (`src/test/resources/application.properties`), así que `mvnw test` no necesita PostgreSQL.

@@ -10,6 +10,16 @@ namespace MiniIdentityApi.Infrastructure.Persistence;
 /// </summary>
 public class IdentityDbContext : DbContext
 {
+    /// <summary>Esquema de PostgreSQL donde viven las tablas de identidad.</summary>
+    public const string Esquema = "identidad";
+
+    /// <summary>
+    /// Esquema por defecto de la tabla de historial de migraciones: "public", para que las
+    /// bases creadas antes de mover las tablas reconozcan las migraciones ya aplicadas.
+    /// En bases nuevas con usuarios por servicio se cambia con Persistencia__EsquemaHistorial.
+    /// </summary>
+    public const string EsquemaHistorial = "public";
+
     public IdentityDbContext(DbContextOptions<IdentityDbContext> options) : base(options) { }
 
     public DbSet<User> Users => Set<User>();
@@ -18,6 +28,9 @@ public class IdentityDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Esquema propio dentro de la base compartida; alertas-service usa el esquema "alertas".
+        modelBuilder.HasDefaultSchema(Esquema);
+
         modelBuilder.Entity<User>(b =>
         {
             b.ToTable("usuarios");

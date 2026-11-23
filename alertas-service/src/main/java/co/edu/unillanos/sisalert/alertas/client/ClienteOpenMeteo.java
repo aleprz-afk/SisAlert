@@ -5,8 +5,14 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,14 +37,8 @@ public class ClienteOpenMeteo implements ClienteDatosExternos {
 
     private static final Logger log = LoggerFactory.getLogger(ClienteOpenMeteo.class);
 
-    private record Coordenada(double lat, double lon) {}
-
-    // Coordenadas geográficas exactas de las estaciones en Villavicencio
-    private static final Map<String, Coordenada> COORDENADAS = Map.of(
-            "0035035100", new Coordenada(4.1372, -73.6250), // ICA Villavicencio (Guatiquía Norte)
-            "3502700090", new Coordenada(3.9585, -73.2710), // Río Guayuriba Sur
-            "0035025110", new Coordenada(4.0574, -73.4679)  // La Libertad (Caño Grande Centro)
-    );
+    private static final ZoneId BOGOTA = ZoneId.of("America/Bogota");
+    private static final DateTimeFormatter HORA_OPEN_METEO = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final HttpClient http;
     private final ObjectMapper mapper;
@@ -57,11 +57,7 @@ public class ClienteOpenMeteo implements ClienteDatosExternos {
 
     @Override
     public double precipitacionAcumuladaMm(String codigoEstacion) throws FuenteExternaException {
-        Coordenada coord = COORDENADAS.get(codigoEstacion);
-        if (coord == null) {
-            // Coordenadas por defecto centro de Villavicencio
-            coord = new Coordenada(4.1420, -73.6266);
-        }
+        CoordenadasEstaciones.Coordenada coord = CoordenadasEstaciones.de(codigoEstacion);
 
         // Consulta precipitación acumulada del día en tiempo real (timezone de Colombia)
         // Se usa Locale.US para asegurar el punto decimal en la URL en vez de coma
@@ -85,22 +81,108 @@ public class ClienteOpenMeteo implements ClienteDatosExternos {
                 throw new FuenteExternaException("Open-Meteo respondió HTTP " + resp.statusCode() + " para URL: " + url);
             }
 
-            JsonNode root = mapper.readTree(resp.body());
-            JsonNode dailyPrecip = root.path("daily").path("precipitation_sum");
-            if (!dailyPrecip.isArray() || dailyPrecip.isEmpty()) {
-                throw new FuenteExternaException("Respuesta sin datos diarios para estación " + codigoEstacion);
-            }
-
-            // Primer elemento del array es el día de hoy
-            double lluviaMm = dailyPrecip.get(0).asDouble(0.0);
+            double lluviaMm = leerPrecipitacionHoy(mapper.readTree(resp.body()), codigoEstacion);
             log.info("Estación {} (lat {}, lon {}) · Precipitación hoy: {} mm",
                     codigoEstacion, coord.lat(), coord.lon(), lluviaMm);
-            return Math.round(lluviaMm * 10.0) / 10.0;
+            return lluviaMm;
 
         } catch (FuenteExternaException e) {
             throw e;
         } catch (Exception e) {
-            throw new FuenteExternaException("Error al consultar datos meteorológicos reales de " + codigoEstacion, e);
+            // Se incluye la causa (p. ej. HttpTimeoutException, ConnectException) para poder
+            // diagnosticar desde los logs de Azure por qué no respondió la fuente.
+            throw new FuenteExternaException("Error al consultar datos meteorológicos reales de " + codigoEstacion
+                    + " (" + e.getClass().getSimpleName() + ": " + e.getMessage() + ")", e);
         }
+    }
+
+    /**
+     * Lluvia horaria de los últimos 7 días y pronóstico de las próximas 24 h en una sola consulta
+     * (past_days=7, forecast_days=2). Es la misma fuente con la que se entrenó el modelo de IA.
+     */
+    @Override
+    public Optional<SerieLluvia> serieHoraria(String codigoEstacion) {
+        CoordenadasEstaciones.Coordenada coord = CoordenadasEstaciones.de(codigoEstacion);
+        String url = String.format(
+                Locale.US,
+                "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&hourly=precipitation"
+                        + "&past_days=7&forecast_days=2&timezone=America%%2FBogota",
+                coord.lat(), coord.lon());
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("User-Agent", "SisAlert-Weather/1.0")
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) {
+                log.warn("Open-Meteo (serie horaria) respondió HTTP {} para {}", resp.statusCode(), codigoEstacion);
+                return Optional.empty();
+            }
+            LocalDateTime horaActual = LocalDateTime.now(BOGOTA).truncatedTo(ChronoUnit.HOURS);
+            return armarSerie(mapper.readTree(resp.body()), horaActual);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Optional.empty();
+        } catch (Exception e) {
+            log.warn("No se pudo obtener la serie horaria de {}: {}", codigoEstacion, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Toma de la respuesta horaria las 168 horas que terminan en horaActual y las 24 siguientes.
+     * Si falta alguna hora o algún valor, no hay serie (la zona queda sin predicción de IA).
+     */
+    static Optional<SerieLluvia> armarSerie(JsonNode root, LocalDateTime horaActual) {
+        JsonNode tiempos = root.path("hourly").path("time");
+        JsonNode lluvia = root.path("hourly").path("precipitation");
+        if (!tiempos.isArray() || !lluvia.isArray() || tiempos.size() != lluvia.size()) {
+            return Optional.empty();
+        }
+        int actual = -1;
+        for (int i = 0; i < tiempos.size(); i++) {
+            if (LocalDateTime.parse(tiempos.get(i).asText(), HORA_OPEN_METEO).equals(horaActual)) {
+                actual = i;
+                break;
+            }
+        }
+        int desde = actual - SerieLluvia.HORAS_HISTORIA + 1;
+        int hasta = actual + SerieLluvia.HORAS_PRONOSTICO;
+        if (actual < 0 || desde < 0 || hasta >= lluvia.size()) {
+            return Optional.empty();
+        }
+        List<Double> pasadas = new ArrayList<>();
+        List<Double> pronostico = new ArrayList<>();
+        for (int i = desde; i <= hasta; i++) {
+            JsonNode valor = lluvia.get(i);
+            if (!valor.isNumber() || valor.asDouble() < 0) {
+                return Optional.empty();
+            }
+            (i <= actual ? pasadas : pronostico).add(valor.asDouble());
+        }
+        return Optional.of(new SerieLluvia(pasadas, pronostico, horaActual));
+    }
+
+    /**
+     * Extrae la lluvia de hoy (primer elemento de daily.precipitation_sum).
+     * Un valor ausente o nulo es un dato faltante, no "0 mm": se reporta como falla de la
+     * fuente para no mostrar una zona en NORMAL sin tener datos que lo respalden.
+     */
+    static double leerPrecipitacionHoy(JsonNode root, String codigoEstacion) throws FuenteExternaException {
+        JsonNode dailyPrecip = root.path("daily").path("precipitation_sum");
+        if (!dailyPrecip.isArray() || dailyPrecip.isEmpty()) {
+            throw new FuenteExternaException("Respuesta sin datos diarios para estación " + codigoEstacion);
+        }
+        JsonNode hoy = dailyPrecip.get(0);
+        if (!hoy.isNumber()) {
+            throw new FuenteExternaException("Open-Meteo no reportó lluvia de hoy para estación " + codigoEstacion);
+        }
+        double lluviaMm = hoy.asDouble();
+        if (lluviaMm < 0) {
+            throw new FuenteExternaException("Valor de lluvia inválido (" + lluviaMm + ") para estación " + codigoEstacion);
+        }
+        return Math.round(lluviaMm * 10.0) / 10.0;
     }
 }

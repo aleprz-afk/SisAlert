@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using MiniIdentityApi.Api;
 using MiniIdentityApi.Api.Middleware;
 using MiniIdentityApi.Application.Interfaces;
 using MiniIdentityApi.Application.Services;
@@ -10,6 +12,9 @@ using MiniIdentityApi.Infrastructure.Persistence;
 using MiniIdentityApi.Infrastructure.Repositories;
 using MiniIdentityApi.Infrastructure.Security;
 using System.Text;
+using System.Text.Json;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,16 +45,28 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// Persistencia: PostgreSQL, tablas propias dentro de la misma base "sisalert".
-// La cadena se puede sobrescribir con la variable de entorno ConnectionStrings__Identity.
+// Persistencia: PostgreSQL, esquema propio dentro de la base "sisalert".
+// En desarrollo la cadena viene de appsettings.Development.json; en producción de la
+// variable de entorno ConnectionStrings__Identity. Sin ella el servicio no arranca.
 var connectionString = builder.Configuration.GetConnectionString("Identity")
-    ?? "Host=localhost;Port=5432;Database=sisalert;Username=sisalert;Password=sisalert";
+    ?? throw new InvalidOperationException(
+        "Falta la cadena de conexión: defina la variable de entorno ConnectionStrings__Identity.");
 
-builder.Services.AddDbContext<IdentityDbContext>(options => options.UseNpgsql(connectionString));
+// Esquema de la tabla de historial de migraciones: "public" por compatibilidad con las bases
+// locales existentes; en una base nueva con usuarios por servicio (infra/db) se usa "identidad"
+// con Persistencia__EsquemaHistorial=identidad, porque ese usuario no puede escribir en "public".
+var esquemaHistorial = builder.Configuration["Persistencia:EsquemaHistorial"] ?? IdentityDbContext.EsquemaHistorial;
+
+builder.Services.AddDbContext<IdentityDbContext>(options => options.UseNpgsql(connectionString,
+        npgsql => npgsql
+            .MigrationsHistoryTable("__EFMigrationsHistory", esquemaHistorial)
+            // Reintenta ante cortes transitorios de red, frecuentes con bases en la nube.
+            .EnableRetryOnFailure(maxRetryCount: 3)));
 
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<IRoleRepository, EfRoleRepository>();
-builder.Services.AddSingleton<IPasswordHasher, Sha256PasswordHasher>();
+// PBKDF2; los hashes SHA-256 anteriores se aceptan y se actualizan en el siguiente login.
+builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddSingleton<ITokenService, JwtTokenService>();
 
 builder.Services.AddScoped<AuthenticationService>();
@@ -57,8 +74,14 @@ builder.Services.AddScoped<AuthorizationService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<RoleService>();
 
+// La clave de firma nunca va en appsettings.json: en producción llega por la variable de
+// entorno Jwt__Key (desde Key Vault). HS256 exige al menos 256 bits (32 bytes).
 var jwtKey = builder.Configuration["Jwt:Key"]
-    ?? throw new InvalidOperationException("Jwt:Key is missing in configuration.");
+    ?? throw new InvalidOperationException("Falta la clave JWT: defina la variable de entorno Jwt__Key.");
+if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
+{
+    throw new InvalidOperationException("La clave JWT (Jwt__Key) debe tener al menos 32 caracteres.");
+}
 
 var jwtIssuer = builder.Configuration["Jwt:Issuer"]
     ?? throw new InvalidOperationException("Jwt:Issuer is missing in configuration.");
@@ -85,7 +108,64 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+// Health checks para Azure Container Apps (sondas de vida y de disponibilidad):
+//   /health        -> el proceso responde (no toca la base)
+//   /health/ready  -> además puede consultar PostgreSQL
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<IdentityDbContext>("postgresql", tags: ["ready"]);
+
+// Detrás del proxy de Azure (y del nginx del frontend) la conexión llega por HTTP desde el
+// proxy: se leen X-Forwarded-For / X-Forwarded-Proto para conocer la IP real del cliente
+// (la usa el límite de intentos de login) y el esquema original (https).
+// Proxy__SaltosConfiables = cuántos proxies propios hay delante (Azure + nginx = 2).
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = builder.Configuration.GetValue("Proxy:SaltosConfiables", 1);
+    // Las IP internas de Azure cambian; la protección contra encabezados falsos la da
+    // ForwardLimit (solo se confía en los últimos saltos, que agrega nuestra infraestructura).
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+// Límite de intentos para login y registro, por dirección IP: frena la fuerza bruta
+// de contraseñas y la creación masiva de cuentas. Configurable con RateLimit__IntentosPorMinuto.
+var intentosPorMinuto = builder.Configuration.GetValue("RateLimit:IntentosPorMinuto", 10);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy(PoliticasLimite.Autenticacion, context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = intentosPorMinuto,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json; charset=utf-8";
+        await context.HttpContext.Response.WriteAsync(JsonSerializer.Serialize(new
+        {
+            error = "DEMASIADOS_INTENTOS",
+            mensaje = "Demasiados intentos. Espere un minuto e intente de nuevo."
+        }), cancellationToken);
+    };
+});
+
+// CORS solo para los orígenes configurados (Cors__Origenes, separados por comas).
+// Si no se configura ninguno, no se habilita CORS: el frontend llega por el mismo origen (proxy).
+var origenesCors = (builder.Configuration["Cors:Origenes"] ?? "")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+    policy.WithOrigins(origenesCors)
+        .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
+        .WithHeaders("Authorization", "Content-Type")));
+
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
@@ -115,8 +195,18 @@ using (var scope = app.Services.CreateScope())
     var adminUser = userRepository.FindByUsernameOrEmail("admin");
     if (adminUser is null)
     {
+        // La contraseña inicial del administrador no está en el código: en desarrollo viene de
+        // appsettings.Development.json y en producción de la variable Seed__AdminPassword.
+        // Solo se usa la primera vez, cuando el usuario admin todavía no existe.
+        var adminPassword = builder.Configuration["Seed:AdminPassword"];
+        if (string.IsNullOrWhiteSpace(adminPassword))
+        {
+            throw new InvalidOperationException(
+                "No existe el usuario admin y falta su contraseña inicial: defina Seed__AdminPassword.");
+        }
+
         var salt = passwordHasher.GenerateSalt();
-        var hash = passwordHasher.Hash("Admin123*", salt);
+        var hash = passwordHasher.Hash(adminPassword, salt);
 
         var credential = new Credential(hash, salt);
         adminUser = new User("admin", "admin@example.com", credential);
@@ -132,9 +222,20 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// Sin UseHttpsRedirection: en Azure el HTTPS lo termina el ingreso de Container Apps (que ya
+// redirige HTTP -> HTTPS) y entre contenedores el tráfico es interno.
+app.UseCors();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false,
+});
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+});
 
 app.Run();

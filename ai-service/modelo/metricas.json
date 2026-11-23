@@ -1,0 +1,180 @@
+{
+  "version": "2.0.0",
+  "entrenado": "2026-11-20T03:09:47+00:00",
+  "pregunta": "P(lluvia >= 40 mm en las próximas 24 h)",
+  "umbral_mm": 40.0,
+  "horizonte_horas": 24,
+  "modelo_elegido": "logistica",
+  "variables": [
+    "lluvia_1h",
+    "lluvia_3h",
+    "lluvia_6h",
+    "lluvia_12h",
+    "lluvia_24h",
+    "lluvia_48h",
+    "lluvia_72h",
+    "lluvia_7d",
+    "intensidad_max_24h",
+    "horas_con_lluvia_24h",
+    "pronostico_6h",
+    "pronostico_24h",
+    "pronostico_max_24h",
+    "mes_sin",
+    "mes_cos",
+    "hora_sin",
+    "hora_cos"
+  ],
+  "datos": {
+    "fuente": "Lluvia observada: Open-Meteo Historical Weather API (reanálisis ERA5). Pronóstico: Open-Meteo Previous Runs API (pronóstico emitido un día antes).",
+    "estaciones": [
+      "0035035100",
+      "3502700090"
+    ],
+    "desarrollo": "2024-01-31 a 2025-12-31",
+    "validacion_cruzada": "5 bloques trimestrales desde 2024-10-01",
+    "prueba": "2026-01-01 a 2026-11-11",
+    "filas": {
+      "desarrollo": 33602,
+      "prueba": 15120
+    },
+    "horas_con_evento": {
+      "desarrollo": 1152,
+      "prueba": 460
+    }
+  },
+  "bandas_riesgo": {
+    "MEDIO": 0.103,
+    "ALTO": 0.206,
+    "criterio": "Riesgo relativo: MEDIO >= 3x y ALTO >= 6x la tasa base de eventos del desarrollo (0.034). Regla fijada de antemano, no ajustada con la prueba.",
+    "validacion_cruzada_MEDIO": {
+      "roc_auc": 0.7623,
+      "pr_auc": 0.0675,
+      "precision": 0.0667,
+      "recall": 0.1167,
+      "f1": 0.0848
+    },
+    "validacion_cruzada_ALTO": {
+      "roc_auc": 0.7623,
+      "pr_auc": 0.0675,
+      "precision": 0.058,
+      "recall": 0.0394,
+      "f1": 0.0469
+    }
+  },
+  "prueba_2026_modelo_elegido": {
+    "general": {
+      "roc_auc": 0.8802,
+      "pr_auc": 0.3206
+    },
+    "banda_MEDIO": {
+      "roc_auc": 0.8802,
+      "pr_auc": 0.3206,
+      "precision": 0.1079,
+      "recall": 0.7609,
+      "f1": 0.189
+    },
+    "banda_ALTO": {
+      "roc_auc": 0.8802,
+      "pr_auc": 0.3206,
+      "precision": 0.2878,
+      "recall": 0.4348,
+      "f1": 0.3463
+    },
+    "brier": 0.0266,
+    "brier_climatologia": 0.0282,
+    "tasa_base": 0.0304
+  },
+  "comparacion": {
+    "persistencia": {
+      "validacion_cruzada": {
+        "roc_auc": 0.7094,
+        "pr_auc": 0.068,
+        "precision": 0.0926,
+        "recall": 0.2939,
+        "f1": 0.1408
+      },
+      "prueba_2026": {
+        "roc_auc": 0.6771,
+        "pr_auc": 0.1021,
+        "precision": 0.0971,
+        "recall": 0.3022,
+        "f1": 0.147
+      }
+    },
+    "climatologia": {
+      "validacion_cruzada": {
+        "roc_auc": 0.6879,
+        "pr_auc": 0.0672,
+        "precision": 0.0876,
+        "recall": 0.5864,
+        "f1": 0.1525,
+        "brier": 0.0288
+      },
+      "prueba_2026": {
+        "roc_auc": 0.7872,
+        "pr_auc": 0.1325,
+        "precision": 0.082,
+        "recall": 0.787,
+        "f1": 0.1485,
+        "brier": 0.0282
+      }
+    },
+    "pronostico": {
+      "validacion_cruzada": {
+        "roc_auc": 0.7049,
+        "pr_auc": 0.0563,
+        "precision": 0.0567,
+        "recall": 0.7424,
+        "f1": 0.1053
+      },
+      "prueba_2026": {
+        "roc_auc": 0.9147,
+        "pr_auc": 0.3387,
+        "precision": 0.0504,
+        "recall": 1.0,
+        "f1": 0.096
+      }
+    },
+    "logistica": {
+      "validacion_cruzada": {
+        "roc_auc": 0.7623,
+        "pr_auc": 0.0675,
+        "precision": 0.0857,
+        "recall": 0.4742,
+        "f1": 0.1451,
+        "brier": 0.0303
+      },
+      "prueba_2026": {
+        "roc_auc": 0.8802,
+        "pr_auc": 0.3206,
+        "precision": 0.0607,
+        "recall": 0.9543,
+        "f1": 0.1142,
+        "brier": 0.0266
+      }
+    },
+    "boosting": {
+      "validacion_cruzada": {
+        "roc_auc": 0.7737,
+        "pr_auc": 0.0768,
+        "precision": 0.0919,
+        "recall": 0.5621,
+        "f1": 0.158,
+        "brier": 0.03
+      },
+      "prueba_2026": {
+        "roc_auc": 0.8019,
+        "pr_auc": 0.0926,
+        "precision": 0.055,
+        "recall": 0.8239,
+        "f1": 0.1031,
+        "brier": 0.0384
+      }
+    }
+  },
+  "versiones": {
+    "scikit-learn": "1.9.1",
+    "numpy": "2.5.5",
+    "pandas": "3.1.1"
+  }
+}

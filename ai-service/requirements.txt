@@ -1,0 +1,9 @@
+# Dependencias para SERVIR el modelo (lo que lleva el contenedor).
+# scikit-learn y numpy deben ser las mismas versiones con las que se entrenó modelo/modelo.joblib.
+fastapi==0.165.0
+uvicorn[standard]==0.54.0
+pydantic==2.14.4
+scikit-learn==1.9.1
+numpy==2.5.5
+scipy==1.18.1
+joblib==1.6.0

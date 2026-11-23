@@ -15,7 +15,9 @@ public class IdentityDbContextFactory : IDesignTimeDbContextFactory<IdentityDbCo
             ?? "Host=localhost;Port=5432;Database=sisalert;Username=sisalert;Password=sisalert";
 
         var options = new DbContextOptionsBuilder<IdentityDbContext>()
-            .UseNpgsql(connectionString)
+            .UseNpgsql(connectionString,
+                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory",
+                    Environment.GetEnvironmentVariable("Persistencia__EsquemaHistorial") ?? IdentityDbContext.EsquemaHistorial))
             .Options;
 
         return new IdentityDbContext(options);
